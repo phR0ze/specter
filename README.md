@@ -1,2 +1,5 @@
 # specter
-Immediate mode Ui toolkit
+Media curation toolkit
+
+## Backlog
+* Prototyping out ideas
