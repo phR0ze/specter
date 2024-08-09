@@ -86,8 +86,12 @@ exif::run()
         local filename="$src_dir/$(basename "$x")"
         # grep ... // Catch the line for 'Create Date'
         # head ... // Ensures only first line is used
-        # sed ...  // Trims out the year and month e.g. 2011:06
-        local create=$(exiftool "$x" | grep "^Create" | head -1 | sed -e 's|.*\([0-9]\{4\}:[0-9]\{2\}\).*|\1|')
+        # sed ...  // Trims out the year and month, first '2011:06' and second '06.12.2011'
+        local create=$(exiftool "$x" | grep "^Create" | head -1 | sed -ne 's|.*\([0-9]\{4\}:[0-9]\{2\}\).*|\1|p')
+        if [[ "$create" == "" ]]; then
+            create=$(exiftool "$x" | grep "^Create" | head -1 | sed -ne 's|.* \([0-9]\{2\}\).*\([0-9]\{4\}\).*|\2:\1|p')
+        fi
+
         # Grabs the year only e.g. 2011
         local year="${create%%:*}"
         # Grabs the month only e.g. 06
