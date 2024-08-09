@@ -1,0 +1,29 @@
+[package]
+name = "specter"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Media curation toolkit"
+repository = "https://github.com/phR0ze/specter"
+exclude = [
+    "docs",
+    "config",
+    "examples",
+    ".git",
+    ".githooks",
+    ".github",
+    "tests",
+    "benches",
+    "target",
+    ".vscode",
+]
+
+# Spliting the library from the binary with workspaces allows for a separation of
+# dependencies so the binary dependencies aren't required for the library.
+# path = <dependency> entries in dependencies are automatically included
+#[workspace]
+#members = ["exif"]
+
+[dependencies]
+clap = { version = "4.5.14", features = ["derive"] }
+tracing = "0.1"
