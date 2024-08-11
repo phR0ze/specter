@@ -21,8 +21,8 @@ exclude = [
 # Spliting the library from the binary with workspaces allows for a separation of
 # dependencies so the binary dependencies aren't required for the library.
 # path = <dependency> entries in dependencies are automatically included
-#[workspace]
-#members = ["exif"]
+[workspace]
+members = ["exif"]
 
 [dependencies]
 clap = { version = "4.5.14", features = ["derive"] }
