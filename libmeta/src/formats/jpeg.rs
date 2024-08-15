@@ -1,14 +1,32 @@
 use std::io;
 
+use super::Meta;
 use crate::errors::ParseError;
 
 // Custom nom error type
 //type Res<T, U> = IResult<T, U, VerboseError<T>>;
 
-// JPEG files can contain a variety of different metadata formats, including JFIF, Exif, IPTC, and XMP.
-// pub fn exif<T: io::Read>(reader: T) {
-//     // Check if the file is a JPEG
-//     file_type("hellow").unwrap();
+#[derive(Debug)]
+pub struct Jpeg;
 
-//     println!("Hello, world!");
-// }
+impl Jpeg {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Meta for Jpeg {
+    fn exif(&self) {
+        println!("Hello, world!");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse() {
+        //
+    }
+}

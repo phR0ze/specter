@@ -1,13 +1,16 @@
 use std::io;
 
-use crate::{errors::ParseError, formats};
+use crate::{
+    errors::ParseError,
+    formats::{self, Meta},
+};
 
 /// Determine the file type
-pub(crate) fn file_type(reader: &mut impl io::Read) -> Result<(), ParseError> {
+pub(crate) fn file_type(reader: &mut impl io::Read) -> Result<impl Meta, ParseError> {
     let mut buf = [0u8; 2];
     reader.read_exact(&mut buf)?;
     match buf {
-        formats::JPEG_PREFIX => Ok(()),
+        formats::JPEG_PREFIX => Ok(formats::jpeg::Jpeg::new()),
         _ => Err(ParseError::unknown_header(&buf)),
     }
 }
