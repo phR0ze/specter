@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, io};
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -15,11 +15,19 @@ impl ParseError {
             kind: ParseErrorKind::UnknownHeader,
         }
     }
+
+    pub fn read(e: io::Error) -> Self {
+        Self {
+            data: Box::new([]),
+            kind: ParseErrorKind::Read(e),
+        }
+    }
 }
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
+            ParseErrorKind::Read(e) => write!(f, "read error: {}", e),
             ParseErrorKind::UnknownHeader => write!(f, "unknown header {:x?}", self.data),
         }
     }
@@ -28,8 +36,15 @@ impl fmt::Display for ParseError {
 impl Error for ParseError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
+            ParseErrorKind::Read(e) => Some(e),
             ParseErrorKind::UnknownHeader => None,
         }
+    }
+}
+
+impl From<io::Error> for ParseError {
+    fn from(e: io::Error) -> Self {
+        Self::read(e)
     }
 }
 
@@ -37,6 +52,8 @@ impl Error for ParseError {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ParseErrorKind {
+    Read(io::Error),
+
     #[non_exhaustive]
     UnknownHeader,
 }

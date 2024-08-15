@@ -1,5 +1,6 @@
 pub mod errors;
-pub mod jpeg;
+pub mod formats;
+mod utils;
 
 /// All essential symbols in a simple consumable form
 ///
@@ -9,5 +10,5 @@ pub mod jpeg;
 /// ```
 pub mod prelude {
     pub use crate::errors;
-    pub use crate::jpeg;
+    pub use crate::formats;
 }
