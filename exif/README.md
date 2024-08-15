@@ -125,24 +125,34 @@ the image. They are used by cameras and applications to store metadata about the
 
 ### JFIF
 [JPEG File Interchange Format](https://www.loc.gov/preservation/digital/formats/fdd/fdd000018.shtml) 
-builds on JPEG to store metadata in the file. It uses the APP0 `0xFFE0` marker to insert camera 
-configuration data and a thumbnail of the image. JFIF files start with `0xFFD8 0xFFE0`.
+builds on JPEG to store metadata in the file. It uses the APP0 `0xFFE0` marker to insert metadata 
+about the image including an optional thumbnail. JFIF files start with `0xFFD8 0xFFE0`. JFIF may have 
+an optional extension to the APP0 `0xFFE0` marker using the same marker value immediately following 
+the original JFIF APP0 marker. Th extension was added post 1.02 to allow for embedding thumbnails in 
+three different formats.
 
 **References**
 * [JFIF 1.02 specification](https://web.archive.org/web/20120301195630/http:/www.jpeg.org/public/jfif.pdf)
+* [JFIF wikipedia](https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format)
 
 ### JFIF file example
 ```
 0x000000: 0xff 0xd8 0xff 0xe0 0x00 0x10 0x4a 0x46 0x49 0x46 0x00 0x01 0x02 0x01 0x00 0x48 0x00 0x48 0x00 0x00
 0x000014: 0xff 0xe1 0x1c 0x45 0x45 0x78 0x69 0x66 0x00 0x00 0x49 0x49 0x2a 0x00 0x08 0x00 0x00 0x00 0x0b 0x00
 ```
-
 | Field             | Byte# | Description
 | ----------------- | ----- | ------------------------------------------
 | JPEG marker       | 2     | `0xff 0xd8` indicates this file is a JPEG image
 | APP0 marker       | 2     | `0xff 0xe0` indicates this file contains JFIF metadata
 | APP0 data length  | 2     | `0x00 0x10` size i.e. `0x0010` or `16-2` or `14 bytes` of data.
 | Identifier        | 5     | `0x4a 0x46 0x49 0x46 0x00` = `JFIF` in ASCII terminated by a null byte
+| JFIF version      | 2     | `0x01 0x02` is the major and minor JFIF version i.e. `1.02`
+| Density Units     | 1     | `0x00` = None, `0x01` = pixels per inch, `0x02` = pixels per centimeter
+| Xdensity          | 2     | `0x00 0x48` = `72` Horizontal pixel density, Must not be zero
+| Ydensity          | 2     | `0x00 0x48` = `72` Vertical pixel density, Must not be zero
+| Xthumbnail        | 1     | `0x00` Horizontal pixels of the embedded RGB thumbnail, May be zero
+| Ythumbnail        | 1     | `0x00` Vertical pixels of the embedded RGB thumbnail, May be zero
+| Thumbnail data    | 3 x n | Uncompressed 24 bit RGB (8 bits per color channel) raster thumbnail
 
 ### JPEG EXIF
 When Exif is embedded in a JPEG, the exif data is stored in one of JPEG's defined Application 
