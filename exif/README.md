@@ -11,7 +11,11 @@ time, location, thumbnails, descriptions, copyright information etc...
   * [Timeline](#timeline)
   * [References](#references)
   * [Terms](#terms)
+* [Tags](#tags)
+  * [Example tags](#example-tags)
+  * [Time tags](#time-tags)
 * [JPEG](#jpeg)
+  * [Marker size component](#marker-size-component)
   * [JFIF](#jfif)
   * [JPEG EXIF](#jpeg-exif)
 * [TIFF](#tiff)
@@ -53,7 +57,7 @@ The Exif tag structure is borrowed from the TIFF format.
 
 ## Tags
 
-### Examples
+### Example tags
 | Tag                       | Value
 | ------------------------- | ----------------------------------
 | Manufacturer              | CASIO
@@ -100,23 +104,24 @@ of the file for a specific purpose e.g. start of the image data, end of the imag
 | Marker   | Name | Data    | Description
 | -------- | ---- | ------- | -------------
 | `0xFFD8` | SOI  |         | Start of the file
+| `0xFFDA` | SOS  |         | Start of scan i.e. start of image data
 | `0xFFD9` | EOI  |         | End of image data
 | `0xFFE0` | APP0 | "JFIF"  | JFIF marker segment
 | `0xFFE1` | APP1 | "Exif"  | Exif marker segment
 | `0xFFE2` | APP2 | "Exif"  | Exif marker segment
 
-Marker format `0xFF` + Marker Number (1 byte) + Data size (2 bytes) + Data (n bytes).
+Marker format `0xFF` (1 byte) + Marker Number (1 byte) + Data size (2 bytes) + Data (n bytes).
+* (2 bytes) of marker
+* (2 bytes) of data size
+* (n bytes) of data
 
 ### Marker size component
 The size component consists of 2 bytes taken together to represent a big endian 16-bit integer 
-specifying the length of the data following e.g. `0xFF 0xE0 0x01 0x02` has a size of 
-`0x01 + 0x02 - 2`
+specifying the length of the data following including the 2 bytes for the data size itself e.g. `0xFF 
+0xE0 0x00 0x10` has a size of `16-2=14`
 
-
-is 2 bytes in big endian format. . Markers `0xFFE0` through `0xFFEF` are called 
-application markers and are not necessary for decoding the image. They are used by cameras and 
-applications to store information.
-
+Markers `0xFFE0` through `0xFFEF` are called application markers and are not necessary for decoding 
+the image. They are used by cameras and applications to store metadata about the image.
 
 ### JFIF
 [JPEG File Interchange Format](https://www.loc.gov/preservation/digital/formats/fdd/fdd000018.shtml) 
@@ -126,6 +131,18 @@ configuration data and a thumbnail of the image. JFIF files start with `0xFFD8 0
 **References**
 * [JFIF 1.02 specification](https://web.archive.org/web/20120301195630/http:/www.jpeg.org/public/jfif.pdf)
 
+### JFIF file example
+```
+0x000000: 0xff 0xd8 0xff 0xe0 0x00 0x10 0x4a 0x46 0x49 0x46 0x00 0x01 0x02 0x01 0x00 0x48 0x00 0x48 0x00 0x00
+0x000014: 0xff 0xe1 0x1c 0x45 0x45 0x78 0x69 0x66 0x00 0x00 0x49 0x49 0x2a 0x00 0x08 0x00 0x00 0x00 0x0b 0x00
+```
+
+| Field             | Byte# | Description
+| ----------------- | ----- | ------------------------------------------
+| JPEG marker       | 2     | `0xff 0xd8` indicates this file is a JPEG image
+| APP0 marker       | 2     | `0xff 0xe0` indicates this file contains JFIF metadata
+| APP0 data length  | 2     | `0x00 0x10` size i.e. `0x0010` or `16-2` or `14 bytes` of data.
+| Identifier        | 5     | `0x4a 0x46 0x49 0x46 0x00` = `JFIF` in ASCII terminated by a null byte
 
 ### JPEG EXIF
 When Exif is embedded in a JPEG, the exif data is stored in one of JPEG's defined Application 
@@ -135,15 +152,6 @@ Exif metadata is restricted in size to 64 kB in JPEG images as the specification
 exif data should reside in the APP1 segment although the FlashPix extensions allow information to 
 span APP1 and APP2 segments however this is not commonly used. This has led some camera manufacturers 
 to develop non standard ways to store large preview images in the image.
-
-### Example headers
-```
-0x000000: 0xff 0xd8 0xff 0xe0 0x00 0x10 0x4a 0x46 0x49 0x46 0x00 0x01 0x02 0x01 0x00 0x48 0x00 0x48 0x00 0x00
-```
-* The first two bytes `0xff 0xd8` indicate this is a JPEG image
-* The next two bytes `0xff 0xe0` indicate that there is JFIF metadata stored in it
-* 
-
 
 ### TIFF
 When Exif is embedded in a TIFF, the exif data is stored in a TIFF sub-image file directory (sub-IFD) 
