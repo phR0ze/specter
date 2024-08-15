@@ -1,4 +1,53 @@
-# Exif
+# Meta
+Specter meta supports a collection of metadata formats from various media files.
+
+## Goals
+* Provide a simple API to read and write media file metadata
+  * Ability to target specific tags by name or category
+* High performance tag location without unncessary reads
+* Support removing PII or all metadata from files
+* Support bulk operations
+
+### Quick links
+* [Overview](#overview)
+  * [Terms](#terms)
+  * [File signatures](#file-signatures)
+* [Exif](#exif)
+  * [Timeline](#timeline)
+  * [References](#references)
+  * [Tags](#tags)
+    * [Example tags](#example-tags)
+    * [Time tags](#time-tags)
+* [JPEG](#jpeg)
+  * [Marker size component](#marker-size-component)
+  * [JFIF](#jfif)
+  * [JPEG EXIF](#jpeg-exif)
+* [TIFF](#tiff)
+ 
+## Overview
+
+### Terms
+* ***DSC*** - Digital Still Camera
+* ***DVC*** - Digital Video Camera
+* ***DTV*** - Digital Television
+* ***Exif*** - Exchangeable image file format
+* ***JEIDA*** - Japan Electronic Industries Development Association
+* ***JEITA*** - Japan Electronic and Information Technologies Industries Association
+* ***Primary Image*** - The main image data
+* ***Thumbnail Image*** - A reduced-size image used to index the primary image
+
+### File signatures
+Per [Gary Kessler's signatures page](https://www.garykessler.net/library/file_sigs.html) I'm looking 
+to target mediat files:
+
+| File Extension    | Hex Signature                         | ASCI Signature  | Description
+| ----------------- | ------------------------------------- | --------------- | ----------------------------
+| JPE,JPEG,JPG,JFIF | `FF D8` prefix, `FF D9` suffix        | `ÿØ`            | Generic JPEG Image file
+|                   | `FF D8 FF E1 xx xx 45 78 69 66 00`    | `ÿØÿà..JFIF.`   | JPEG JFIF application segment
+|                   | `FF D8 FF E1 xx xx 45 78 69 66 00`    | `ÿØÿà..Exif.`   | JPEG Exif application segment
+|                   | `FF D8 FF E8 xx xx 53 50 49 46 46 00` | `ÿØÿà..SPIFF.`  | JPEG SPIFF application segment
+
+## Exif
 Exif according to the JEIDA/JEITA/CIPA specifications is a standard that specifies formats for 
 images, sound, and ancillary tags used by digital cameras, smart phones, scanners and other systems. 
 The specification adds metadata tags to existing media formats e.g. JPEG, TIFF, WAV, PCM, IMA-ADPCM. 
@@ -6,21 +55,6 @@ It doesn't support JPEG 2000 or GIF. There is both an Exif image file specificat
 Exif audio file specification. The Exif metadata tags cover camera settings, image metrics, data and 
 time, location, thumbnails, descriptions, copyright information etc...
 
-### Quick links
-* [Overview](#overview)
-  * [Timeline](#timeline)
-  * [References](#references)
-  * [Terms](#terms)
-* [Tags](#tags)
-  * [Example tags](#example-tags)
-  * [Time tags](#time-tags)
-* [JPEG](#jpeg)
-  * [Marker size component](#marker-size-component)
-  * [JFIF](#jfif)
-  * [JPEG EXIF](#jpeg-exif)
-* [TIFF](#tiff)
-
-## Overview
 The Exif tag structure is borrowed from the TIFF format. 
 
 ### Timeline
@@ -44,20 +78,10 @@ The Exif tag structure is borrowed from the TIFF format.
 * [Exif 3.0 spec](https://archive.org/details/exif-specs-3.0-dc-008-translation-2023-e/)
 * [MIT quick reference for 2.1](https://www.media.mit.edu/pia/Research/deepview/exif.html)
 * [File Signatures](https://web.archive.org/web/20221112073316/https://www.garykessler.net/library/file_sigs.html)
- 
-### Terms
-* ***DSC*** - Digital Still Camera
-* ***DVC*** - Digital Video Camera
-* ***DTV*** - Digital Television
-* ***Exif*** - Exchangeable image file format
-* ***JEIDA*** - Japan Electronic Industries Development Association
-* ***JEITA*** - Japan Electronic and Information Technologies Industries Association
-* ***Primary Image*** - The main image data
-* ***Thumbnail Image*** - A reduced-size image used to index the primary image
 
-## Tags
+### Tags
 
-### Example tags
+#### Example tags
 | Tag                       | Value
 | ------------------------- | ----------------------------------
 | Manufacturer              | CASIO
@@ -92,7 +116,7 @@ The Exif tag structure is borrowed from the TIFF format.
 | Interoperability index    | R98
 | Interoperability version  | (null) 
 
-### Time Tags
+#### Time Tags
 
 ## JPEG
 JPEG's are constructed using `Markers`. Markers are a binary formatted value used to mark a segment 
@@ -108,7 +132,8 @@ of the file for a specific purpose e.g. start of the image data, end of the imag
 | `0xFFD9` | EOI  |         | End of image data
 | `0xFFE0` | APP0 | "JFIF"  | JFIF marker segment
 | `0xFFE1` | APP1 | "Exif"  | Exif marker segment
-| `0xFFE2` | APP2 | "Exif"  | Exif marker segment
+| `0xFFE2` | APP2 | "CIFF"  | Canon Camera Image File Format
+| `0xFFE8` | APP8 | "SPIFF" | Still Picture Interchange File Format
 
 Marker format `0xFF` (1 byte) + Marker Number (1 byte) + Data size (2 bytes) + Data (n bytes).
 * (2 bytes) of marker

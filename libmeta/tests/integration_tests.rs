@@ -1,14 +1,16 @@
-use libexif::prelude::*;
+use libmeta::prelude::*;
 use nom::{bytes::complete::tag, IResult};
 use std::{fs::File, path::Path};
 
-fn parser(input: &str) -> IResult<&str, &str> {
+const Jpeg: u16 = 0xFFD8;
+
+fn file_type(header: &[u8]) -> IResult<&[u8], &[u8]> {
     tag("abc")(input)
 }
 
 #[test]
 fn test_file_type() {
-    let (remaining_input, output) = parser("abcHello").unwrap();
+    let (remaining_input, output) = file_type(&[0xFFD8]).unwrap();
     assert_eq!(remaining_input, "Hello");
     assert_eq!(output, "abc");
 }

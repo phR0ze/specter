@@ -1,10 +1,10 @@
 [package]
-name = "libexif"
+name = "libmeta"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "Exif implementation"
-repository = "https://github.com/phR0ze/specter/libexif"
+description = "Metadata implementation for specter"
+repository = "https://github.com/phR0ze/specter/libmeta"
 exclude = [
     "docs",
     "config",
@@ -19,4 +19,5 @@ exclude = [
 ]
 
 [dependencies]
+anyhow = "1.0.86"
 nom = "7.1.3"
