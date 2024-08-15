@@ -1,13 +1,10 @@
-use std::io;
-
-use super::Meta;
-use crate::errors::ParseError;
+use crate::{Meta, MetaKind};
 
 // Custom nom error type
 //type Res<T, U> = IResult<T, U, VerboseError<T>>;
 
 #[derive(Debug)]
-pub struct Jpeg;
+pub(crate) struct Jpeg;
 
 impl Jpeg {
     pub fn new() -> Self {
@@ -16,8 +13,8 @@ impl Jpeg {
 }
 
 impl Meta for Jpeg {
-    fn exif(&self) {
-        println!("Hello, world!");
+    fn kind(&self) -> MetaKind {
+        MetaKind::Jpeg
     }
 }
 
