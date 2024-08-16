@@ -2,7 +2,7 @@ use std::{any::Any, fmt, io};
 
 use super::Kind;
 use crate::{
-    errors::{CastError, ParseError},
+    errors::{CastError, MetaError},
     formats::{self, Jpeg},
 };
 
@@ -14,12 +14,12 @@ pub enum Meta {
 
 impl Meta {
     /// Discover the media type and create a new instance based on that type
-    pub fn new(mut reader: impl io::Read) -> Result<Self, ParseError> {
+    pub fn new(mut reader: impl io::Read) -> Result<Self, MetaError> {
         let mut buf = [0u8; 2];
         reader.read_exact(&mut buf)?;
         match buf {
             formats::JPEG_PREFIX => Ok(Self::Jpeg(Jpeg::new(reader)?)),
-            _ => Err(ParseError::unknown_header(&buf)),
+            _ => Err(MetaError::unknown_header(&buf)),
         }
     }
 
@@ -60,14 +60,17 @@ mod tests {
         let mut header = io::Cursor::new(&[0xFF, 0x00]);
         assert_eq!(
             Meta::new(&mut header).unwrap_err().to_string(),
-            "unknown header [ff, 0]"
+            "metadata unknown header [ff, 00]"
         );
 
         // bad header length
         let mut header = io::Cursor::new(&[0xFF]);
+        let err = Meta::new(&mut header).unwrap_err();
+
+        assert_eq!(err.to_string(), "metadata file read failed");
         assert_eq!(
-            Meta::new(&mut header).unwrap_err().to_string(),
-            "read error: failed to fill whole buffer"
+            err.as_ref().source().unwrap().to_string(),
+            "io::Error: failed to fill whole buffer"
         );
     }
 }

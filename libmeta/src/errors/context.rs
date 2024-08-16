@@ -1,5 +1,8 @@
 use std::{error::Error, fmt};
 
+/// ContextError is a simple error type that allows for converting underlying errors
+/// into into a more readable error message with a prefix to indicate the underlying
+/// component that generated the error.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct ContextError {

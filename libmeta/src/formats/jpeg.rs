@@ -2,12 +2,12 @@
 // of the file for a specific purpose e.g. start of the image data, end of the image data, app specific
 // segments etc...
 
-use nom::{bytes::streaming as nom_bytes, error::context, number::streaming as nom_nums};
+use nom::{bytes::streaming as nom_bytes, error::Error as NomError, number::streaming as nom_nums};
 use std::{any::Any, io};
 
 use super::*;
 use crate::{
-    errors::{CastError, JpegParseError, ParseError},
+    errors::{CastError, JpegParseError, MetaError},
     Kind, Meta,
 };
 
@@ -27,7 +27,7 @@ pub struct Jpeg {
 }
 
 impl Jpeg {
-    pub fn new(mut reader: impl io::Read) -> Result<Self, ParseError> {
+    pub fn new(reader: impl io::Read) -> Result<Self, JpegParseError> {
         Ok(Self { jfif: None })
     }
 }
@@ -59,17 +59,13 @@ fn segment(input: &[u8]) -> nom::IResult<&[u8], Segment> {
 /// * (1 byte) number e.g. `0xE0`
 fn marker(input: &[u8]) -> Result<(&[u8], [u8; 2]), JpegParseError> {
     match nom::sequence::preceded(
-        nom_bytes::tag::<[u8; 1], &[u8], nom::error::Error<&[u8]>>(JPEG_MARKER_PREFIX),
+        nom_bytes::tag::<[u8; 1], &[u8], NomError<&[u8]>>(JPEG_MARKER_PREFIX),
         nom_nums::u8,
     )(input)
     {
         Ok((remain, num)) => Ok((remain, [JPEG_MARKER_PREFIX[0], num])),
         Err(e) => Err(JpegParseError::segment_marker_invalid().with_nom_source(e)),
     }
-    // .map_err(|x: impl nom::error::ParseError<&[u8]>| {
-    //     JpegParseError::segment_marker_invalid().with_source("", x)
-    // })
-    //Err(JpegParseError::segment_marker_invalid().with_data(&[0xFF, 0xD8]))
 }
 
 #[cfg(test)]
@@ -100,19 +96,6 @@ mod tests {
             err.as_ref().source().unwrap().to_string(),
             "nom::Parsing Error: Error { input: [0, 16, 74, 70, 73, 70, 0, 1, 2, 1, 0, 72, 0, 72, 0, 0], code: Tag }"
         );
-    }
-
-    #[test]
-    fn test_jpeg_get_segment_marker() {
-        let (remains, segment) = segment(&[0xFF, 0xE0, 0x00, 0x03, 0x01]).unwrap();
-        // assert_eq!(remains, &[]);
-        // assert_eq!(
-        //     segment,
-        //     Segment {
-        //         id: APP0_MARKER,
-        //         data: vec![0x01]
-        //     }
-        // );
     }
 
     #[test]

@@ -3,9 +3,9 @@ mod meta;
 pub mod errors;
 pub mod formats;
 
-use std::{fs::File, io, path::Path};
+use std::io;
 
-use errors::ParseError;
+use errors::MetaError;
 use meta::*;
 
 /// All essential symbols in a simple consumable form
@@ -21,6 +21,6 @@ pub mod prelude {
 }
 
 /// Create a new meta data instance for the given media stream
-pub fn new(mut reader: impl io::Read) -> Result<Meta, ParseError> {
+pub fn new(reader: impl io::Read) -> Result<Meta, MetaError> {
     Meta::new(reader)
 }

@@ -1,6 +1,6 @@
 use std::{error::Error, fmt, path::Path};
 
-use super::ParseError;
+use super::MetaError;
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -33,7 +33,7 @@ impl Error for FileTypeError {
 #[non_exhaustive]
 pub enum FileTypeErrorKind {
     #[non_exhaustive]
-    Parse(ParseError),
+    Parse(MetaError),
 }
 
 #[cfg(test)]

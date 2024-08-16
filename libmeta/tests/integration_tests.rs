@@ -34,15 +34,16 @@ fn test_new_meta_is_valid() {
 fn test_new_meta_is_not_valid() {
     // unknown header type
     let mut header = io::Cursor::new(&[0xFF, 0x00]);
-    assert_eq!(
-        libmeta::new(&mut header).unwrap_err().to_string(),
-        "unknown header [ff, 0]"
-    );
+    let err = libmeta::new(&mut header).unwrap_err();
+    assert_eq!(err.to_string(), "metadata unknown header [ff, 00]");
+    assert_eq!(err.as_ref().source().is_none(), true);
 
     // bad header length
     let mut header = io::Cursor::new(&[0xFF]);
+    let err = libmeta::new(&mut header).unwrap_err();
+    assert_eq!(err.to_string(), "metadata file read failed");
     assert_eq!(
-        libmeta::new(&mut header).unwrap_err().to_string(),
-        "read error: failed to fill whole buffer"
+        err.as_ref().source().unwrap().to_string(),
+        "io::Error: failed to fill whole buffer"
     );
 }

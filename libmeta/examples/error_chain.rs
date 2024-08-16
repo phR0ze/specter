@@ -51,9 +51,16 @@ impl Error for JpegMetaError {
 // Tier 1 error handling
 // -------------------------------------------------------------------------------------------------
 fn first_level_error() -> Result<(), JpegParseError> {
-    Err(JpegParseError::segment_marker_invalid()
-        .with_data(&[0xFF, 0xD8])
-        .with_io_source(io::Error::from(io::ErrorKind::NotFound)))
+    let marker: [u8; 1] = [0xFF];
+
+    match nom::sequence::preceded(
+        nom::bytes::streaming::tag::<[u8; 1], &[u8], nom::error::Error<&[u8]>>(marker),
+        nom::number::streaming::u8,
+    )(&[0x00])
+    {
+        Ok((_, _)) => Ok(()),
+        Err(e) => Err(JpegParseError::segment_marker_invalid().with_nom_source(e)),
+    }
 }
 
 // Tier 2 error handling
