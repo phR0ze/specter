@@ -7,7 +7,7 @@ use std::{any::Any, io};
 
 use super::*;
 use crate::{
-    errors::{CastError, ParseError},
+    errors::{CastError, JpegParseError, ParseError},
     Kind, Meta,
 };
 
@@ -57,9 +57,19 @@ fn segment(input: &[u8]) -> nom::IResult<&[u8], Segment> {
 /// Parse out a JPEG marker which is a 2 byte value consisting of:
 /// * (1 byte) magic hex value `0xFF`
 /// * (1 byte) number e.g. `0xE0`
-fn marker(input: &[u8]) -> nom::IResult<&[u8], [u8; 2]> {
-    nom::sequence::preceded(nom_bytes::tag(JPEG_MARKER_PREFIX), nom_nums::u8)(input)
-        .map(|(remain, num)| (remain, [JPEG_MARKER_PREFIX[0], num]))
+fn marker(input: &[u8]) -> Result<(&[u8], [u8; 2]), JpegParseError> {
+    match nom::sequence::preceded(
+        nom_bytes::tag::<[u8; 1], &[u8], nom::error::Error<&[u8]>>(JPEG_MARKER_PREFIX),
+        nom_nums::u8,
+    )(input)
+    {
+        Ok((remain, num)) => Ok((remain, [JPEG_MARKER_PREFIX[0], num])),
+        Err(e) => Err(JpegParseError::segment_marker_invalid().with_nom_source(e)),
+    }
+    // .map_err(|x: impl nom::error::ParseError<&[u8]>| {
+    //     JpegParseError::segment_marker_invalid().with_source("", x)
+    // })
+    //Err(JpegParseError::segment_marker_invalid().with_data(&[0xFF, 0xD8]))
 }
 
 #[cfg(test)]
@@ -83,7 +93,13 @@ mod tests {
     fn test_marker_parser_fail() {
         let result = marker(&jfif_data_1[2..]);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "JPEG Marker");
+        let err = result.unwrap_err();
+
+        assert_eq!(err.to_string(), "JPEG segment marker invalid");
+        assert_eq!(
+            err.as_ref().source().unwrap().to_string(),
+            "nom::Parsing Error: Error { input: [0, 16, 74, 70, 73, 70, 0, 1, 2, 1, 0, 72, 0, 72, 0, 0], code: Tag }"
+        );
     }
 
     #[test]

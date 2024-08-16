@@ -53,7 +53,7 @@ impl Error for JpegMetaError {
 fn first_level_error() -> Result<(), JpegParseError> {
     Err(JpegParseError::segment_marker_invalid()
         .with_data(&[0xFF, 0xD8])
-        .with_source(io::Error::from(io::ErrorKind::NotFound)))
+        .with_io_source(io::Error::from(io::ErrorKind::NotFound)))
 }
 
 // Tier 2 error handling

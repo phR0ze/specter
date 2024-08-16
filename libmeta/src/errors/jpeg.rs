@@ -1,11 +1,13 @@
 use std::{error::Error, fmt, io};
 
+use super::ContextError;
+
 #[derive(Debug)]
 #[non_exhaustive] // allow for future error fields
 pub struct JpegParseError {
-    data: Box<[u8]>,                      // additional error data
-    kind: JpegParseErrorKind,             // extensible kind messaging
-    source: Option<JpegParseErrorSource>, // optional extensible source error
+    data: Box<[u8]>,              // additional error data
+    kind: JpegParseErrorKind,     // extensible kind messaging
+    source: Option<ContextError>, // optional extensible source error
 }
 
 impl JpegParseError {
@@ -25,8 +27,18 @@ impl JpegParseError {
     }
 
     // Add an optional source error
-    pub fn with_source(mut self, source: io::Error) -> Self {
-        self.source = Some(JpegParseErrorSource::Read(source));
+    pub fn with_io_source(self, source: io::Error) -> Self {
+        self.with_source("io::Error: ", source)
+    }
+
+    // Add an optional source error
+    pub fn with_nom_source(self, source: nom::Err<nom::error::Error<&[u8]>>) -> Self {
+        self.with_source("nom::", source)
+    }
+
+    // Add an optional source error
+    pub fn with_source<T: Error>(mut self, kind: &str, source: T) -> Self {
+        self.source = Some(ContextError::from(kind, source));
         self
     }
 }
@@ -53,9 +65,16 @@ impl fmt::Display for JpegParseError {
 impl Error for JpegParseError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.source {
-            Some(JpegParseErrorSource::Read(e)) => Some(e),
-            _ => None,
+            Some(source) => Some(source),
+            None => None,
         }
+    }
+}
+
+// Provides a way to get the generic Error type
+impl AsRef<dyn Error> for JpegParseError {
+    fn as_ref(&self) -> &(dyn Error + 'static) {
+        self
     }
 }
 
@@ -67,14 +86,10 @@ pub enum JpegParseErrorKind {
     JpegSegmentDataInvalid,
 }
 
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum JpegParseErrorSource {
-    Read(std::io::Error),
-}
-
 #[cfg(test)]
 mod tests {
+    use nom::error::{ErrorKind, ParseError};
+
     use super::*;
 
     fn jpeg_error_as_result() -> Result<(), JpegParseError> {
@@ -111,10 +126,25 @@ mod tests {
     fn test_segment_marker_invalid_with_data_and_source() {
         let err = JpegParseError::segment_marker_invalid()
             .with_data(&[0x00, 0x01])
-            .with_source(io::Error::from(io::ErrorKind::NotFound));
+            .with_source(
+                "nom::",
+                nom::error::Error::from_error_kind(1, ErrorKind::Tag),
+            );
         assert_eq!(err.to_string(), "JPEG segment marker invalid [00, 01]");
-        if let Some(JpegParseErrorSource::Read(err)) = err.source {
-            assert_eq!(err.to_string(), "entity not found");
+        assert_eq!(
+            err.as_ref().source().unwrap().to_string(),
+            "nom::error Tag at: 1"
+        );
+    }
+
+    #[test]
+    fn test_segment_marker_invalid_with_data_and_io_source() {
+        let err = JpegParseError::segment_marker_invalid()
+            .with_data(&[0x00, 0x01])
+            .with_io_source(io::Error::from(io::ErrorKind::NotFound));
+        assert_eq!(err.to_string(), "JPEG segment marker invalid [00, 01]");
+        if let Some(err) = err.source {
+            assert_eq!(err.to_string(), "io::Error: entity not found");
         }
     }
 }
