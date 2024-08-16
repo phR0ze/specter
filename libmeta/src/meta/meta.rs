@@ -12,7 +12,7 @@ pub trait Meta: fmt::Debug {
     fn new() -> Self;
 
     /// Discover the available meta data types for this media format
-    fn discover(reader: &mut impl io::Read) -> Result<(), ParseError>;
+    fn discover(&self, reader: &mut impl io::Read) -> Result<(), ParseError>;
 
     /// Return the meta type as a generic Any type for downcasting
     fn as_any(&self) -> &dyn Any;

@@ -3,7 +3,7 @@ mod meta;
 pub mod errors;
 pub mod formats;
 
-use std::io;
+use std::{fs::File, io, path::Path};
 
 use errors::ParseError;
 use meta::*;

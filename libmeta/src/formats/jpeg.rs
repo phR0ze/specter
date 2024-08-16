@@ -22,7 +22,7 @@ impl Meta for Jpeg {
         Self::new()
     }
 
-    fn discover(reader: &mut impl io::Read) -> Result<(), ParseError> {
+    fn discover(&self, reader: &mut impl io::Read) -> Result<(), ParseError> {
         Ok(())
     }
 
