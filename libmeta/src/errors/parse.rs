@@ -9,6 +9,14 @@ pub struct ParseError {
 
 impl ParseError {
     /// Create a new `ParseError` with the `UnknownHeader` kind.
+    pub fn invalid_jpeg_marker(data: &[u8]) -> Self {
+        Self {
+            data: data.into(),
+            kind: ParseErrorKind::UnknownHeader,
+        }
+    }
+
+    /// Create a new `ParseError` with the `UnknownHeader` kind.
     pub fn unknown_header(data: &[u8]) -> Self {
         Self {
             data: data.into(),
@@ -27,6 +35,7 @@ impl ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
+            ParseErrorKind::InvalidJpegMarker => write!(f, "invalid jpeg marker {:x?}", self.data),
             ParseErrorKind::Read(e) => write!(f, "read error: {}", e),
             ParseErrorKind::UnknownHeader => write!(f, "unknown header {:x?}", self.data),
         }
@@ -36,6 +45,7 @@ impl fmt::Display for ParseError {
 impl Error for ParseError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
+            ParseErrorKind::InvalidJpegMarker => None,
             ParseErrorKind::Read(e) => Some(e),
             ParseErrorKind::UnknownHeader => None,
         }
@@ -56,6 +66,9 @@ pub enum ParseErrorKind {
 
     #[non_exhaustive]
     UnknownHeader,
+
+    #[non_exhaustive]
+    InvalidJpegMarker,
 }
 
 #[cfg(test)]

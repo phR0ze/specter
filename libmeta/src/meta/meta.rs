@@ -7,6 +7,7 @@ use crate::{
 };
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Meta {
     Jpeg(Jpeg),
 }
