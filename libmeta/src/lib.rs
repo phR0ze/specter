@@ -39,7 +39,7 @@ mod tests {
         let mut header = io::Cursor::new(&[0xFF, 0xD8]);
         let meta = new(&mut header);
         assert!(meta.is_ok());
-        assert!(meta.unwrap().kind() == MetaKind::Jpeg);
+        assert!(meta.unwrap().kind() == Kind::Jpeg);
     }
 
     #[test]
