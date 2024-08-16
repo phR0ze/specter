@@ -1,8 +1,8 @@
 // Surface types directly to avoid ugly studdering namespacing
 mod jpeg;
-pub(crate) use jpeg::Jpeg;
+pub use jpeg::*;
 mod jfif;
-pub(crate) use jfif::Jfif;
+pub use jfif::*;
 
 // Well known media file hex signatures
 pub(crate) const JPEG_PREFIX: [u8; 2] = [0xFF, 0xD8];

@@ -12,33 +12,8 @@ pub struct Jpeg {
 }
 
 impl Jpeg {
-    pub fn new() -> Self {
-        Self { jfif: None }
-    }
-}
-
-impl Meta for Jpeg {
-    fn new() -> Self {
-        Self::new()
-    }
-
-    fn discover(&self, reader: &mut impl io::Read) -> Result<(), ParseError> {
-        Ok(())
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn kind(&self) -> Kind {
-        Kind::Jpeg
-    }
-
-    fn as_jpeg(&self) -> Result<&Jpeg, CastError> {
-        match self.as_any().downcast_ref::<Jpeg>() {
-            Some(jpg) => Ok(jpg),
-            None => Err(CastError::new(format!("Jpeg real type {}", self.kind()))),
-        }
+    pub fn new(mut reader: impl io::Read) -> Result<Self, ParseError> {
+        Ok(Self { jfif: None })
     }
 }
 

@@ -5,13 +5,10 @@ use std::{fs::File, io, path::Path};
 #[test]
 fn test_jpeg() {
     let f = File::open(Path::new("tests/images/nikon-e950.jpg")).unwrap();
-    let mut buf = io::BufReader::new(f);
-    let meta = libmeta::new(&mut buf);
+    let buf = io::BufReader::new(f);
+    let meta = libmeta::new(buf);
     assert!(meta.is_ok());
     let meta = meta.unwrap();
-
-    // Discover the meta data
-    meta.discover(&mut buf).unwrap();
 
     // Ensure the file was detected properly
     assert!(meta.kind() == Kind::Jpeg);
