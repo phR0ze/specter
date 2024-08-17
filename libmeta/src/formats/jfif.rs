@@ -1,3 +1,9 @@
+use nom::{bytes::streaming as nom_bytes, error::Error as NomError, number::streaming as nom_nums};
+
+use crate::errors::JpegParseError;
+
+const JFIF_IDENTIFIER: [u8; 4] = [0x4A, 0x46, 0x49, 0x46];
+
 #[derive(Debug, Clone)]
 pub struct Jfif {
     pub major: u8,                  // major version
@@ -25,22 +31,95 @@ impl Jfif {
     }
 }
 
-#[derive(Debug, Clone)]
+// Parse the given data into a JFIF structure
+//| Field             | Byte# | Description
+//| Identifier        | 5     | `0x4a 0x46 0x49 0x46 0x00` = `JFIF` in ASCII terminated by a null byte
+//| JFIF version      | 2     | `0x01 0x02` is the major and minor JFIF version i.e. `1.02`
+//| Density Units     | 1     | `0x00` = None, `0x01` = pixels per inch, `0x02` = pixels per centimeter
+//| Xdensity          | 2     | `0x00 0x48` = `72` Horizontal pixel density, Must not be zero
+//| Ydensity          | 2     | `0x00 0x48` = `72` Vertical pixel density, Must not be zero
+//| Xthumbnail        | 1     | `0x00` Horizontal pixels of the embedded RGB thumbnail, May be zero
+//| Ythumbnail        | 1     | `0x00` Vertical pixels of the embedded RGB thumbnail, May be zero
+//| Thumbnail data    | 3 x n | Uncompressed 24 bit RGB (8 bits per color channel) raster thumbnail
+fn parse_jfif(input: &[u8]) -> Result<Jfif, JpegParseError> {
+    let mut jfif = Jfif::new();
+
+    // Parse the JFIF identifier and drop the results
+    let (remain, _) = nom::sequence::terminated(
+        nom_bytes::tag::<[u8; 4], &[u8], NomError<&[u8]>>(JFIF_IDENTIFIER),
+        nom_bytes::tag::<[u8; 1], &[u8], NomError<&[u8]>>([0x00]),
+    )(input)
+    .map_err(|x| JpegParseError::jfif_identifier_invalid().with_nom_source(x))?;
+
+    // Parse the JFIF version
+    let (remain, (major, minor)) = nom::sequence::tuple((nom_nums::u8, nom_nums::u8))(remain)
+        .map_err(|x| JpegParseError::jfif_version_invalid().with_nom_source(x))?;
+    jfif.major = major;
+    jfif.minor = minor;
+
+    // Parse the JFIF density units
+    let (remain, (density, xdensity, ydensity)) =
+        nom::sequence::tuple((nom_nums::u8, nom_nums::be_u16, nom_nums::be_u16))(remain)
+            .map_err(|x| JpegParseError::jfif_density_units_invalid().with_nom_source(x))?;
+    jfif.density = density.into();
+    if jfif.density == DensityUnit::Unknown {
+        return Err(JpegParseError::jfif_density_units_unknown().with_data(&[density]));
+    }
+    jfif.x_density = xdensity;
+    jfif.y_density = ydensity;
+
+    // Parse the JFIF thumbnail dimensions
+    let (remain, (x_thumbnail, y_thumbnail)) =
+        nom::sequence::tuple((nom_nums::u8, nom_nums::u8))(remain)
+            .map_err(|x| JpegParseError::jfif_thumbnail_dimensions_invalid().with_nom_source(x))?;
+    jfif.x_thumbnail = x_thumbnail;
+    jfif.y_thumbnail = y_thumbnail;
+
+    // Check if a thumbnail was included
+    if x_thumbnail != 0 && y_thumbnail != 0 {
+        //
+    }
+
+    Ok(jfif)
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum DensityUnit {
     PixelsPerInch,
     PixelsPerCm,
     None,
+    Unknown,
+}
+
+impl From<u8> for DensityUnit {
+    fn from(value: u8) -> Self {
+        match value {
+            0x00 => Self::None,
+            0x01 => Self::PixelsPerInch,
+            0x02 => Self::PixelsPerCm,
+            _ => Self::Unknown,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    const JFIF_DATA_1: [u8; 18] = [
+        0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x02, 0x01, 0x00, 0x48, 0x00,
+        0x48, 0x00, 0x00,
+    ];
+
     #[test]
-    fn test_new_meta_is_valid_jpeg() {
-        // let mut header = io::Cursor::new(&[0xFF, 0xD8]);
-        // let meta = new(&mut header);
-        // assert!(meta.is_ok());
-        // assert!(meta.unwrap().kind() == Kind::Jpeg);
+    fn test_parse_jfif_success() {
+        let jfif = parse_jfif(&JFIF_DATA_1[4..]).unwrap();
+        assert_eq!(jfif.major, 1);
+        assert_eq!(jfif.minor, 2);
+        assert_eq!(jfif.density, DensityUnit::PixelsPerInch);
+        assert_eq!(jfif.x_density, 72);
+        assert_eq!(jfif.y_density, 72);
+        assert_eq!(jfif.x_thumbnail, 0);
+        assert_eq!(jfif.y_thumbnail, 0);
     }
 }
