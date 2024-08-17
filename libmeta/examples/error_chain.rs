@@ -1,6 +1,6 @@
 // Experimenting with better error handling
 // -------------------------------------------------------------------------------------------------
-use std::{error::Error, fmt, io};
+use std::{error::Error, fmt};
 
 use libmeta::errors::JpegParseError;
 

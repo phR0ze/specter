@@ -19,7 +19,7 @@ fn test_jpeg() {
     let jpeg = jpeg.unwrap();
 
     // Read the JFIF metadata
-    let jfif = jpeg.jfif.as_ref();
+    let _jfif = jpeg.jfif.as_ref();
 }
 
 #[test]

@@ -1,5 +1,7 @@
 use std::{error::Error, fmt, io};
 
+use crate::formats::Jfif;
+
 use super::ContextError;
 
 #[derive(Debug)]
@@ -11,11 +13,58 @@ pub struct JpegParseError {
 }
 
 impl JpegParseError {
-    // Helper to construct the error
+    pub fn jfif_identifier_invalid() -> Self {
+        Self {
+            data: Box::new([]),
+            kind: JpegParseErrorKind::JfifIdentifierInvalid,
+            source: None,
+        }
+    }
+
+    pub fn jfif_version_invalid() -> Self {
+        Self {
+            data: Box::new([]),
+            kind: JpegParseErrorKind::JfifVersionInvalid,
+            source: None,
+        }
+    }
+
+    pub fn segment_invalid() -> Self {
+        Self {
+            data: Box::new([]),
+            kind: JpegParseErrorKind::JpegSegmentInvalid,
+            source: None,
+        }
+    }
+
     pub fn segment_marker_invalid() -> Self {
         Self {
             data: Box::new([]),
             kind: JpegParseErrorKind::JpegSegmentMarkerInvalid,
+            source: None,
+        }
+    }
+
+    pub fn segment_length_invalid() -> Self {
+        Self {
+            data: Box::new([]),
+            kind: JpegParseErrorKind::JpegSegmentLengthInvalid,
+            source: None,
+        }
+    }
+
+    pub fn segment_data_invalid() -> Self {
+        Self {
+            data: Box::new([]),
+            kind: JpegParseErrorKind::JpegSegmentDataInvalid,
+            source: None,
+        }
+    }
+
+    pub fn segment_marker_unknown(marker: &[u8]) -> Self {
+        Self {
+            data: marker.into(),
+            kind: JpegParseErrorKind::JpegSegmentMarkerUnknown,
             source: None,
         }
     }
@@ -41,13 +90,25 @@ impl JpegParseError {
         self.source = Some(ContextError::from(kind, source));
         self
     }
+
+    // Add an optional source error
+    pub fn wrap<T: Error>(mut self, source: T) -> Self {
+        self.source = Some(ContextError::from("", source));
+        self
+    }
 }
 
 impl fmt::Display for JpegParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
+            JpegParseErrorKind::JfifIdentifierInvalid => write!(f, "JFIF identifier invalid")?,
+            JpegParseErrorKind::JfifVersionInvalid => write!(f, "JFIF version invalid")?,
+            JpegParseErrorKind::JpegSegmentInvalid => write!(f, "JPEG segment invalid")?,
             JpegParseErrorKind::JpegSegmentMarkerInvalid => {
                 write!(f, "JPEG segment marker invalid")?
+            }
+            JpegParseErrorKind::JpegSegmentMarkerUnknown => {
+                write!(f, "JPEG segment marker unknown")?
             }
             JpegParseErrorKind::JpegSegmentLengthInvalid => {
                 write!(f, "JPEG segment length invalid")?
@@ -81,7 +142,11 @@ impl AsRef<dyn Error> for JpegParseError {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum JpegParseErrorKind {
+    JfifIdentifierInvalid,
+    JfifVersionInvalid,
+    JpegSegmentInvalid,
     JpegSegmentMarkerInvalid,
+    JpegSegmentMarkerUnknown,
     JpegSegmentLengthInvalid,
     JpegSegmentDataInvalid,
 }

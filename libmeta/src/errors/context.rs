@@ -43,6 +43,13 @@ impl Error for ContextError {
     }
 }
 
+// Provides a way to get the generic Error type
+impl AsRef<dyn Error> for ContextError {
+    fn as_ref(&self) -> &(dyn Error + 'static) {
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -12,13 +12,28 @@ pub enum Meta {
     Jpeg(Jpeg),
 }
 
+// Notes
+// BufReader is used to read the file in chunks to reduce the number of system calls
+// and improve performance. The default buffer size is 8KB. seeking with BufReader will
+// discard the cache which is inefficient if your looking to reuse the data.
+
+// Vec::with_capacity() will preallocate the memory for the vector to avoid reallocation
+// when the vector grows. The vector is uninitialized and has length 0 but the memory is
+// allocated for use. This is useful when the number of elements is known in advance.
+// Vec will allocate on the heap while arrays are allocated on the stack.
+
+// Another possiblity here is `memmap` which maps the file to memory and allows for the
+// operating system to manage loading the contents into memory as needed transparently.
+// This means though that the data isn't on the heap but rather in the OS buffer cache.
+// https://github.com/getreu/stringsext
+
 impl Meta {
     /// Discover the media type and create a new instance based on that type
-    pub fn new(mut reader: impl io::Read) -> Result<Self, MetaError> {
+    pub fn new<T: io::Read + io::Seek>(mut reader: T) -> Result<Self, MetaError> {
         let mut buf = [0u8; 2];
         reader.read_exact(&mut buf)?;
         match buf {
-            formats::JPEG_PREFIX => Ok(Self::Jpeg(Jpeg::new(reader)?)),
+            formats::JPEG_HEADER => Ok(Self::Jpeg(Jpeg::new(reader)?)),
             _ => Err(MetaError::unknown_header(&buf)),
         }
     }
