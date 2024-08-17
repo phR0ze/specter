@@ -1,7 +1,5 @@
 use std::{error::Error, fmt, io};
 
-use crate::formats::Jfif;
-
 use super::ContextError;
 
 #[derive(Debug)]
@@ -13,6 +11,14 @@ pub struct JpegParseError {
 }
 
 impl JpegParseError {
+    pub fn header_invalid() -> Self {
+        Self {
+            data: Box::new([]),
+            kind: JpegParseErrorKind::HeaderInvalid,
+            source: None,
+        }
+    }
+
     pub fn jfif_identifier_invalid() -> Self {
         Self {
             data: Box::new([]),
@@ -133,6 +139,7 @@ impl JpegParseError {
 impl fmt::Display for JpegParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
+            JpegParseErrorKind::HeaderInvalid => write!(f, "JPEG header is invalid")?,
             JpegParseErrorKind::JfifIdentifierInvalid => write!(f, "JFIF identifier invalid")?,
             JpegParseErrorKind::JfifVersionInvalid => write!(f, "JFIF version invalid")?,
             JpegParseErrorKind::JfifDensityUnitsInvalid => write!(f, "JFIF density units invalid")?,
@@ -180,6 +187,7 @@ impl AsRef<dyn Error> for JpegParseError {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum JpegParseErrorKind {
+    HeaderInvalid,
     JfifIdentifierInvalid,
     JfifVersionInvalid,
     JfifDensityUnitsInvalid,

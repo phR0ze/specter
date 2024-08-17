@@ -18,6 +18,8 @@ Specter meta supports a collection of metadata formats from various media files.
   * [Tags](#tags)
     * [Example tags](#example-tags)
     * [Time tags](#time-tags)
+* [XMP](#xmp)
+* [GIF](#gif)
 * [JPEG](#jpeg)
   * [Marker size component](#marker-size-component)
   * [JFIF](#jfif)
@@ -69,7 +71,7 @@ The Exif tag structure is borrowed from the TIFF format.
 | 2.21 unified  |	Sep 2009      |	
 | 2.3  	        | Apr 2010 	    |
 | 2.3 revised   |	Dec 2012      |	
-| 2.31          | Jul 2016      |	
+| 2.31          | Jul 2016      |	Added OffsetTime, OffsetTimeOriginal, OffsetTimeDigitized
 | 2.32 	        | May 2019      |	
 | 3.0  	        | May 2023 	    | UTF-8 data type 
 
@@ -78,6 +80,9 @@ The Exif tag structure is borrowed from the TIFF format.
 * [Exif 3.0 spec](https://archive.org/details/exif-specs-3.0-dc-008-translation-2023-e/)
 * [MIT quick reference for 2.1](https://www.media.mit.edu/pia/Research/deepview/exif.html)
 * [File Signatures](https://web.archive.org/web/20221112073316/https://www.garykessler.net/library/file_sigs.html)
+* [Exiftool tag names](https://exiftool.org/TagNames/EXIF.html)
+* [Exif 2.32 spec](https://web.archive.org/web/20190624045241if_/http://www.cipa.jp:80/std/documents/e/DC-008-Translation-2019-E.pdf)
+* [Exiftool industry standard](https://exiftool.org/)
 
 ### Tags
 
@@ -118,12 +123,24 @@ The Exif tag structure is borrowed from the TIFF format.
 
 #### Time Tags
 
+## XMP
+Extensible Metadata Platform (XMP)
+
+**References**
+* [XMP Wikipedia](https://en.wikipedia.org/wiki/Extensible_Metadata_Platform)
+
+## GIF
+**References**
+* [GIF Wikipedia](https://en.wikipedia.org/wiki/GIF#Metadata)
+
 ## JPEG
 JPEG's are constructed using `Markers`. Markers are a binary formatted value used to mark a segment 
 of the file for a specific purpose e.g. start of the image data, end of the image data, etc...
 
 **References**
 * [JFIF Wikipedia](https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format)
+* [Exif MIT](https://www.media.mit.edu/pia/Research/deepview/exif.html)
+* [ExifLibrary for DotNet](https://www.codeproject.com/Articles/43665/ExifLibrary-for-NET)
 
 | Marker   | Name | Data    | Description
 | -------- | ---- | ------- | -------------
@@ -134,6 +151,8 @@ of the file for a specific purpose e.g. start of the image data, end of the imag
 | `0xFFE1` | APP1 | "Exif"  | Exif marker segment
 | `0xFFE2` | APP2 | "CIFF"  | Canon Camera Image File Format
 | `0xFFE8` | APP8 | "SPIFF" | Still Picture Interchange File Format
+| `?`      | ?    | "CIPA"  | Mutli Picture Object specification
+
 
 Marker format `0xFF` (1 byte) + Marker Number (1 byte) + Data size (2 bytes) + Data (n bytes).
 * (2 bytes) of marker
@@ -184,15 +203,20 @@ When Exif is embedded in a JPEG, the exif data is stored in one of JPEG's define
 Segments. The `APP1` segment with marker `0xFFE1` can in effect hold an entire TIFF within it.
 
 Exif metadata is restricted in size to 64 kB in JPEG images as the specification defines that all 
-exif data should reside in the APP1 segment although the FlashPix extensions allow information to 
-span APP1 and APP2 segments however this is not commonly used. This has led some camera manufacturers 
-to develop non standard ways to store large preview images in the image.
+exif data should reside in the APP1 segment although the `FlashPix` extensions allow information to 
+span `APP1` and `APP2` segments however this is not commonly used. This has led some camera 
+manufacturers to develop non-standard ways to store large preview images in the image.
 
-| Field             | Byte# | Description
-| ----------------- | ----- | ------------------------------------------
-| JPEG marker       | 2     | `0xff 0xd8` indicates this file is a JPEG image
-| APP1 marker       | 2     | `0xff 0xe1` indicates this file contains EXIF metadata
-| APP1 data length  | 2     | `0x00 0x10` size i.e. `0x0010` or `16-2` or `14 bytes` of data.
+| Example                 | #  | Description
+| ----------------------- | -- | ------------------------------------------
+| `FFD8`                  | 2  | JPEG marker indicates this file is a JPEG image
+| `FFE1`                  | 2  | APP1 marker indicates this file contains EXIF metadata
+| `XXXX`                  | 2  | APP1 data size, in Big Endian, including the 2 size bytes so subtract 2
+| `4578 6966 0000`        | 6  | Exif header i.e. `Exif` and 2 bytes of `0x00`
+| `4949 2A00 0800 0000`   | 8  | Tiff header, 2 bytes of align `0x4949` is Little-Endian, `0x4D4D` is Big-Endian
+
+| `XXXX...`               | ?  | Data area of IFD1
+| `FFD8 XXXX...XXXX FFD9` | ?  | Thumbnail image
 
 ### TIFF
 When Exif is embedded in a TIFF, the exif data is stored in a TIFF sub-image file directory (sub-IFD) 

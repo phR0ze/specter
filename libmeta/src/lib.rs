@@ -22,5 +22,5 @@ pub mod prelude {
 
 /// Create a new meta data instance for the given media stream
 pub fn new<T: io::Read + io::Seek>(reader: T) -> Result<Meta, MetaError> {
-    Meta::new(reader)
+    Meta::parse(reader)
 }
