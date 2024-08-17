@@ -45,6 +45,14 @@ impl JpegParseError {
         }
     }
 
+    pub fn jfif_thumbnail_invalid() -> Self {
+        Self {
+            data: Box::new([]),
+            kind: JpegParseErrorKind::JfifThumbnailInvalid,
+            source: None,
+        }
+    }
+
     pub fn jfif_thumbnail_dimensions_invalid() -> Self {
         Self {
             data: Box::new([]),
@@ -129,6 +137,7 @@ impl fmt::Display for JpegParseError {
             JpegParseErrorKind::JfifVersionInvalid => write!(f, "JFIF version invalid")?,
             JpegParseErrorKind::JfifDensityUnitsInvalid => write!(f, "JFIF density units invalid")?,
             JpegParseErrorKind::JfifDensityUnitsUnknown => write!(f, "JFIF density units unknown")?,
+            JpegParseErrorKind::JfifThumbnailInvalid => write!(f, "JFIF thumbnail invalid")?,
             JpegParseErrorKind::JfifThumbnailDimensionsInvalid => {
                 write!(f, "JFIF thumbnail dimensions invalid")?
             }
@@ -175,6 +184,7 @@ pub enum JpegParseErrorKind {
     JfifVersionInvalid,
     JfifDensityUnitsInvalid,
     JfifDensityUnitsUnknown,
+    JfifThumbnailInvalid,
     JfifThumbnailDimensionsInvalid,
     JpegSegmentInvalid,
     JpegSegmentMarkerInvalid,

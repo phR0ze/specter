@@ -188,6 +188,12 @@ exif data should reside in the APP1 segment although the FlashPix extensions all
 span APP1 and APP2 segments however this is not commonly used. This has led some camera manufacturers 
 to develop non standard ways to store large preview images in the image.
 
+| Field             | Byte# | Description
+| ----------------- | ----- | ------------------------------------------
+| JPEG marker       | 2     | `0xff 0xd8` indicates this file is a JPEG image
+| APP1 marker       | 2     | `0xff 0xe1` indicates this file contains EXIF metadata
+| APP1 data length  | 2     | `0x00 0x10` size i.e. `0x0010` or `16-2` or `14 bytes` of data.
+
 ### TIFF
 When Exif is embedded in a TIFF, the exif data is stored in a TIFF sub-image file directory (sub-IFD) 
 using the tag `0x8769` or the global sub-IFD defined by the tag `0x8825` or the Interoperability IFD 

@@ -34,8 +34,18 @@ enum Marker {
 // JPEG segments are defined by an identifier, their length and the data they contain
 #[derive(Debug, PartialEq)]
 struct Segment {
-    data: Vec<u8>,   // JPEG segment data
     marker: [u8; 2], // JPEG segment identifier
+    length: u16,     // JPEG segment length
+    data: Vec<u8>,   // JPEG segment data
+}
+impl Segment {
+    fn new(marker: [u8; 2], length: u16, data: Vec<u8>) -> Self {
+        Self {
+            marker,
+            length,
+            data,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -56,6 +66,32 @@ impl Jpeg {
     }
 }
 
+/// Parse out all JPEG segments
+fn parse(mut reader: impl io::Read) -> Result<Vec<Marker>, JpegParseError> {
+    let results = vec![];
+
+    // Potential constants
+    let input_len: usize = 4096; // 4KB buffer, use something smaller for tests like 32 bytes
+
+    // Loop over the file reading a chunk at a time and parsing the results.
+    // * Break out into a multi-threaded approach later for performance?
+    loop {
+        let mut chunk: Vec<u8> = Vec::with_capacity(input_len);
+        reader
+            .by_ref() // Create a new reader that will read from the current position.
+            .take(input_len as u64) // Create a new reader that only allows reading up to the input length.
+            .read_to_end(&mut chunk) // Read until the new reader EOFs which is when the buffer is full.
+            .map_err(|x| JpegParseError::segment_invalid().with_io_source(x))?;
+
+        // Parse the chunk
+
+        // Read another chunk
+        chunk.clear();
+    }
+
+    Ok(results)
+}
+
 /// Parse out a segment. A segment has the following structure left to right:
 /// * (1 byte)  Marker prefix e.g `0xFF`
 /// * (1 byte)  Marker Number e.g. `0xE0`
@@ -66,11 +102,10 @@ fn parse_segment(input: &[u8]) -> Result<(&[u8], Segment), JpegParseError> {
 
     // Match marker and parse the corresponding segment type
     match marker {
-        //APP0 | APP1 => {
-        APP0 => {
+        APP0 | APP1 => {
             let (remain, length) = parse_len(remain)?;
             let (remain, data) = parse_data(remain, length)?;
-            Ok((remain, Segment { marker, data }))
+            Ok((remain, Segment::new(marker, length, data)))
         }
         _ => Err(JpegParseError::segment_marker_unknown(&marker)),
     }
@@ -108,32 +143,6 @@ fn parse_data(input: &[u8], length: u16) -> Result<(&[u8], Vec<u8>), JpegParseEr
     Ok((remain, vec))
 }
 
-/// Parse out all JPEG segments
-fn parse(mut reader: impl io::Read) -> Result<Vec<Marker>, JpegParseError> {
-    let results = vec![];
-
-    // Potential constants
-    let input_len: usize = 4096; // 4KB buffer, use something smaller for tests like 32 bytes
-
-    // Loop over the file reading a chunk at a time and parsing the results.
-    // * Break out into a multi-threaded approach later for performance?
-    loop {
-        let mut chunk: Vec<u8> = Vec::with_capacity(input_len);
-        reader
-            .by_ref() // Create a new reader that will read from the current position.
-            .take(input_len as u64) // Create a new reader that only allows reading up to the input length.
-            .read_to_end(&mut chunk) // Read until the new reader EOFs which is when the buffer is full.
-            .map_err(|x| JpegParseError::segment_invalid().with_io_source(x))?;
-
-        // Parse the chunk
-
-        // Read another chunk
-        chunk.clear();
-    }
-
-    Ok(results)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,9 +151,20 @@ mod tests {
         0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x02, 0x01, 0x00, 0x48, 0x00,
         0x48, 0x00, 0x00,
     ];
+    const EXIF_DATA_1: [u8; 20] = [
+        0xff, 0xe1, 0x1c, 0x45, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0x49, 0x49, 0x2a, 0x00, 0x08,
+        0x00, 0x00, 0x00, 0x0b, 0x00,
+    ];
 
     #[test]
-    fn test_segment_parser_success() {
+    fn test_segment_exif_parser_success() {
+        let (_, segment) = parse_segment(&EXIF_DATA_1).unwrap();
+        assert_eq!(segment.marker, APP1);
+        assert_eq!(segment.length, 7235);
+    }
+
+    #[test]
+    fn test_segment_jfif_parser_success() {
         let (remain, segment) = parse_segment(&JFIF_DATA_1).unwrap();
         assert_eq!(segment.marker, APP0);
         assert_eq!(segment.data, &JFIF_DATA_1[4..]);

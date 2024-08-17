@@ -1,4 +1,6 @@
 // Surface types directly to avoid ugly studdering namespacing
+mod exif;
+pub use exif::*;
 mod jpeg;
 pub use jpeg::*;
 mod jfif;
