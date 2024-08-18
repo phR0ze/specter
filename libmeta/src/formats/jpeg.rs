@@ -1,7 +1,6 @@
 // JPEG's are constructed using `Markers`. Markers are a binary formatted value used to mark a segment
 // of the file for a specific purpose e.g. start of the image data, end of the image data, app specific
 // segments etc...
-
 use nom::{bytes::streaming as nom_bytes, error::Error as NomError, number::streaming as nom_nums};
 use std::io::{self, prelude::*};
 
@@ -12,23 +11,15 @@ use crate::{
 };
 
 // JPEG Markers
-const JPEG_MARKER_PREFIX: u8 = 0xFF;
-const JPEG_HEADER: [u8; 2] = [0xFF, 0xD8];
-const SOS: [u8; 2] = [0xFF, 0xDA];
-const EOI: [u8; 2] = [0xFF, 0xD9];
-const APP0: [u8; 2] = [0xFF, 0xE0];
-const APP1: [u8; 2] = [0xFF, 0xE1];
-const APP2: [u8; 2] = [0xFF, 0xE2];
-const APP8: [u8; 2] = [0xFF, 0xE8];
-
-enum Marker {
-    Soi,  // 0xFFD8 - Start of any JPEG file
-    Sos,  // 0xFFDA - Start of scan i.e. start of image data
-    Eoi,  // 0xFFD9 - End of image data
-    App0, // 0xFFE0 - JFIF marker segment
-    App1, // 0xFFE1 - Exif marker segment
-    App2, // 0xFFE2 - CIFF Canon Camera Image File Format
-    App8, // 0xFFE8 - SPIFF Still Picture Interchange File Format
+pub(crate) mod marker {
+    pub(crate) const PREFIX: u8 = 0xFF; // JPEG marker prefix
+    pub(crate) const HEADER: [u8; 2] = [0xFF, 0xD8]; // Start of any JPEG file
+    pub(crate) const SOS: [u8; 2] = [0xFF, 0xDA]; // Start of scan i.e. start of image data
+    pub(crate) const EOI: [u8; 2] = [0xFF, 0xD9]; // End of image data
+    pub(crate) const APP0: [u8; 2] = [0xFF, 0xE0]; // JFIF marker segment
+    pub(crate) const APP1: [u8; 2] = [0xFF, 0xE1]; // Exif marker segment
+    pub(crate) const APP2: [u8; 2] = [0xFF, 0xE2]; // CIFF Canon Camera Image File Format
+    pub(crate) const APP8: [u8; 2] = [0xFF, 0xE8]; // SPIFF Still Picture Interchange File Format
 }
 
 // JPEG segments are defined by an identifier, their length and the data they contain
@@ -51,7 +42,6 @@ impl Segment {
 #[derive(Debug)]
 pub struct Jpeg {
     pub jfif: Option<Jfif>,
-    //pub reader: Box<dyn io::Read>,
 }
 
 impl Jpeg {
@@ -60,6 +50,7 @@ impl Jpeg {
         // Ensure we are dealing with a JPEG
         let mut header = [0u8; 2];
         reader
+            .by_ref()
             .read_exact(&mut header)
             .map_err(|x| JpegParseError::read_failed().with_io_source(x))?;
         if !Jpeg::is_jpeg(&header) {
@@ -76,16 +67,17 @@ impl Jpeg {
         //     // to recover from a corrupt JPEG source. Includes the prefix marker.
         //     // reader.read_until(JPEG_MARKER_PREFIX, &mut Vec::new());
 
-        //     // reader
-        //     //     .take(input_len as u64) // Create a new reader that only allows reading up to the input length.
-        //     //     .read_to_end(&mut chunk) // Read until the new reader EOFs which is when the buffer is full.
-        //     //     .map_err(|x| JpegParseError::segment_invalid().with_io_source(x))?;
+        //     reader
+        //         .by_ref() // Ensure we are not consuming the reader with take()
+        //         .take(10) // Use a larger value like 4096 for production
+        //         .read_to_end(&mut buf) // Read until the new reader EOFs
+        //         .map_err(|x| JpegParseError::segment_invalid().with_io_source(x))?;
 
         //     // Parse any segements out of the chunk of data
         //     // Switch on metadata types by APP location and type header
 
         //     // Read another chunk
-        //     // chunk.clear();
+        //     // buf.clear();
         // }
 
         Ok(Self { jfif: None })
@@ -102,13 +94,12 @@ impl Jpeg {
 /// * (1 byte)  Marker Number e.g. `0xE0`
 /// * (2 bytes) Data size, including 2 size bytes, in Big Endian e.g. e.g 0x00 0x10 = 14 bytes
 fn parse_segment(input: &[u8]) -> Result<(&[u8], Segment), JpegParseError> {
-    let (remain, marker) =
-        parse_marker(input).map_err(|x| JpegParseError::segment_invalid().wrap(x))?;
+    let (remain, marker) = parse_marker(input)?;
 
     // Match marker and parse the corresponding segment type
     match marker {
-        APP0 | APP1 => {
-            let (remain, length) = parse_len(remain)?;
+        marker::APP0 | marker::APP1 => {
+            let (remain, length) = parse_length(remain)?;
             let (remain, data) = parse_data(remain, length)?;
             Ok((remain, Segment::new(marker, length, data)))
         }
@@ -121,16 +112,16 @@ fn parse_segment(input: &[u8]) -> Result<(&[u8], Segment), JpegParseError> {
 /// * (1 byte) number e.g. `0xE0`
 fn parse_marker(input: &[u8]) -> Result<(&[u8], [u8; 2]), JpegParseError> {
     nom::sequence::preceded(
-        nom_bytes::tag::<[u8; 1], &[u8], NomError<&[u8]>>([JPEG_MARKER_PREFIX]),
+        nom_bytes::tag::<[u8; 1], &[u8], NomError<&[u8]>>([marker::PREFIX]),
         nom_nums::u8,
     )(input)
-    .map(|(remain, num)| (remain, [JPEG_MARKER_PREFIX, num]))
+    .map(|(remain, num)| (remain, [marker::PREFIX, num]))
     .map_err(|e| JpegParseError::segment_marker_invalid().with_nom_source(e))
 }
 
 /// Parse out a JPEG segment length 2 byte in Big Endian format that includes the 2 size bytes.
 /// Thus a length of `0x00 0x10` would be length 14 not 16.
-fn parse_len(input: &[u8]) -> Result<(&[u8], u16), JpegParseError> {
+fn parse_length(input: &[u8]) -> Result<(&[u8], u16), JpegParseError> {
     let (remain, length) = nom_nums::be_u16(input)
         .map_err(|x| JpegParseError::segment_length_invalid().with_nom_source(x))?;
     Ok((remain, length - 2))
@@ -152,17 +143,12 @@ fn parse_data(input: &[u8], length: u16) -> Result<(&[u8], Vec<u8>), JpegParseEr
 mod tests {
     use super::*;
 
-    const JFIF_DATA_1: [u8; 18] = [
-        0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x02, 0x01, 0x00, 0x48, 0x00,
-        0x48, 0x00, 0x00,
-    ];
-
-    // #[test]
-    // fn test_parse() {
-    //     let mut data = io::Cursor::new([0xFF, 0xD8, 0x00, 0x00, 0xFF, 0xE1]);
-    //     let err = Jpeg::parse(&mut data).unwrap_err();
-    //     assert_eq!(err.to_string(), "jpeg segment invalid");
-    // }
+    #[test]
+    fn test_parse_provide_more_data() {
+        let mut data = io::Cursor::new([0xFF, 0xD8, 0x00, 0x00, 0xFF, 0xE1]);
+        //let err = Jpeg::parse(&mut data).unwrap_err();
+        //assert_eq!(err.to_string(), "jpeg segment invalid");
+    }
 
     #[test]
     fn test_parse_header_invalid() {
@@ -186,18 +172,29 @@ mod tests {
     }
 
     #[test]
-    fn test_segment_exif_parser_success() {
+    fn test_parse_segment_ask_for_more_data() {
+        let err = parse_segment(&[]).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            JpegParseError::not_enough_data().to_string()
+        );
+        let err1 = err.as_ref().source().unwrap();
+        assert_eq!(err1.to_string(), "nom::Parsing requires 1 bytes/chars");
+    }
+
+    #[test]
+    fn test_parse_segment_exif_success() {
         // skip the jpeg header and jfif segment
         let (_, segment) = parse_segment(&JPEG_DATA_1[20..]).unwrap();
-        assert_eq!(segment.marker, APP1);
+        assert_eq!(segment.marker, marker::APP1);
         assert_eq!(segment.length, 860);
         assert_eq!(segment.data.len(), 860);
     }
 
     #[test]
-    fn test_segment_jfif_parser_success() {
+    fn test_parse_segment_jfif_success() {
         let (remain, segment) = parse_segment(&JFIF_DATA_1).unwrap();
-        assert_eq!(segment.marker, APP0);
+        assert_eq!(segment.marker, marker::APP0);
         assert_eq!(segment.data, &JFIF_DATA_1[4..]);
         assert_eq!(remain, &[]);
         assert_eq!(
@@ -207,7 +204,7 @@ mod tests {
     }
 
     #[test]
-    fn test_segment_marker_unknown() {
+    fn test_parse_segment_marker_unknown() {
         let err = parse_segment(&[0xff, 0xe9]).unwrap_err();
         assert_eq!(
             err.to_string(),
@@ -216,35 +213,68 @@ mod tests {
     }
 
     #[test]
-    fn test_data_parser() {
+    fn test_parse_data_ask_for_more_data() {
+        let err = parse_data(&[], 20).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            JpegParseError::not_enough_data().to_string()
+        );
+        let err1 = err.as_ref().source().unwrap();
+        assert_eq!(err1.to_string(), "nom::Parsing requires 1 bytes/chars");
+    }
+
+    #[test]
+    fn test_parse_data_parser() {
         let (remain, data) = parse_data(&JFIF_DATA_1[4..], 14).unwrap();
         assert_eq!(remain, &[]);
         assert_eq!(data, &JFIF_DATA_1[4..]);
     }
 
     #[test]
-    fn test_length_success() {
+    fn test_parse_length_ask_for_more_data() {
+        let err = parse_length(&[]).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            JpegParseError::not_enough_data().to_string()
+        );
+        let err1 = err.as_ref().source().unwrap();
+        assert_eq!(err1.to_string(), "nom::Parsing requires 2 bytes/chars");
+    }
+
+    #[test]
+    fn test_parse_length_success() {
         {
-            let (remain, length) = parse_len(&[0x00, 0x03, 0x02]).unwrap();
+            let (remain, length) = parse_length(&[0x00, 0x03, 0x02]).unwrap();
             assert_eq!(remain, &[0x02]);
             assert_eq!(length, 1);
         }
         {
-            let (remain, length) = parse_len(&JFIF_DATA_1[2..]).unwrap();
+            let (remain, length) = parse_length(&JFIF_DATA_1[2..]).unwrap();
             assert_eq!(remain, &JFIF_DATA_1[4..]);
             assert_eq!(length, 14);
         }
     }
 
     #[test]
-    fn test_marker_parser_success() {
+    fn test_parse_marker_ask_for_more_data() {
+        let err = parse_marker(&[0xFF]).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            JpegParseError::not_enough_data().to_string()
+        );
+        let err1 = err.as_ref().source().unwrap();
+        assert_eq!(err1.to_string(), "nom::Parsing requires 1 bytes/chars");
+    }
+
+    #[test]
+    fn test_parse_marker_success() {
         let (remain, marker) = parse_marker(&JFIF_DATA_1).unwrap();
         assert_eq!(remain, &JFIF_DATA_1[2..]);
         assert_eq!(marker, [0xFF, 0xE0]);
     }
 
     #[test]
-    fn test_marker_parser_fail() {
+    fn test_parse_marker_fail() {
         let result = parse_marker(&JFIF_DATA_1[2..]);
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -258,6 +288,11 @@ mod tests {
             "nom::Parsing Error: Error { input: [0, 16, 74, 70, 73, 70, 0, 1, 2, 1, 0, 72, 0, 72, 0, 0], code: Tag }"
         );
     }
+
+    const JFIF_DATA_1: [u8; 18] = [
+        0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x02, 0x01, 0x00, 0x48, 0x00,
+        0x48, 0x00, 0x00,
+    ];
 
     const JPEG_DATA_1: [u8; 1260] = [
         0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00,

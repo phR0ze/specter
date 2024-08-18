@@ -23,6 +23,10 @@ impl JpegParseError {
         JpegParseError::new(JpegParseErrorKind::HeaderInvalid)
     }
 
+    pub fn not_enough_data() -> Self {
+        JpegParseError::new(JpegParseErrorKind::NotEnoughData)
+    }
+
     pub fn read_failed() -> Self {
         JpegParseError::new(JpegParseErrorKind::ReadFailed)
     }
@@ -82,8 +86,15 @@ impl JpegParseError {
         self.with_source("io::Error: ", source)
     }
 
-    // Add an optional source error
-    pub fn with_nom_source(self, source: nom::Err<nom::error::Error<&[u8]>>) -> Self {
+    // Add a nom source error and override the kind in particular cases
+    pub fn with_nom_source(mut self, source: nom::Err<nom::error::Error<&[u8]>>) -> Self {
+        if let nom::Err::Incomplete(_) = source {
+            self.kind = JpegParseErrorKind::NotEnoughData;
+        } else {
+            if source.to_string().contains("requires") {
+                self.kind = JpegParseErrorKind::NotEnoughData;
+            }
+        }
         self.with_source("nom::", source)
     }
 
@@ -104,6 +115,7 @@ impl fmt::Display for JpegParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
             JpegParseErrorKind::HeaderInvalid => write!(f, "JPEG header is invalid")?,
+            JpegParseErrorKind::NotEnoughData => write!(f, "JPEG not enough data")?,
             JpegParseErrorKind::ReadFailed => write!(f, "JPEG read failed")?,
             JpegParseErrorKind::JfifIdentifierInvalid => write!(f, "JFIF identifier invalid")?,
             JpegParseErrorKind::JfifVersionInvalid => write!(f, "JFIF version invalid")?,
@@ -153,6 +165,7 @@ impl AsRef<dyn Error> for JpegParseError {
 #[non_exhaustive]
 pub enum JpegParseErrorKind {
     HeaderInvalid,
+    NotEnoughData,
     ReadFailed,
     JfifIdentifierInvalid,
     JfifVersionInvalid,

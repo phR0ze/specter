@@ -31,7 +31,7 @@ impl Meta {
     /// Discover the media type and create a new instance based on that type
     pub fn parse<T: io::BufRead + io::Seek>(reader: &mut T) -> Result<Self, MetaError> {
         let mut header = Vec::new();
-        reader.take(2).read_to_end(&mut header)?;
+        reader.by_ref().take(2).read_to_end(&mut header)?;
 
         // Check the header to determine the media type
         if Jpeg::is_jpeg(&header) {
