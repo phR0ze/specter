@@ -12,7 +12,7 @@ use crate::{
 };
 
 // JPEG Markers
-const JPEG_MARKER_PREFIX: [u8; 1] = [0xFF];
+const JPEG_MARKER_PREFIX: u8 = 0xFF;
 const JPEG_HEADER: [u8; 2] = [0xFF, 0xD8];
 const SOS: [u8; 2] = [0xFF, 0xDA];
 const EOI: [u8; 2] = [0xFF, 0xD9];
@@ -55,39 +55,45 @@ pub struct Jpeg {
 }
 
 impl Jpeg {
-    /// Parse the JPEG file
-    pub fn parse(mut reader: impl io::Read) -> Result<Self, JpegParseError> {
-        if !Jpeg::is_jpeg(&mut reader) {
+    /// Parse the JPEG
+    pub fn parse(mut reader: impl io::BufRead) -> Result<Self, JpegParseError> {
+        // Ensure we are dealing with a JPEG
+        let mut header = [0u8; 2];
+        reader
+            .read_exact(&mut header)
+            .map_err(|x| JpegParseError::read_failed().with_io_source(x))?;
+        if !Jpeg::is_jpeg(&header) {
             return Err(JpegParseError::header_invalid());
         }
 
-        let input_len: usize = 4096; // 4KB buffer, use something smaller for tests like 32 bytes
-
-        // Loop over the file reading a chunk at a time and parsing the results.
+        // Loop over the source reading chunks of data and parsing into segments.
+        // * Progressively load more data until all segments are parsed, but bail before
+        //   reading the actual image data to avoid the unnecessary overhead.
         // * Break out into a multi-threaded approach later for performance?
+        let mut buf: Vec<u8> = Vec::with_capacity(4096);
         // loop {
-        //     let mut chunk: Vec<u8> = Vec::with_capacity(input_len);
-        //     reader
-        //         .by_ref() // Create a new reader that will read from the current position.
-        //         .take(input_len as u64) // Create a new reader that only allows reading up to the input length.
-        //         .read_to_end(&mut chunk) // Read until the new reader EOFs which is when the buffer is full.
-        //         .map_err(|x| JpegParseError::segment_invalid().with_io_source(x))?;
+        //     // Defensively discard unrecognized bytes up to next marker in an attempt
+        //     // to recover from a corrupt JPEG source. Includes the prefix marker.
+        //     // reader.read_until(JPEG_MARKER_PREFIX, &mut Vec::new());
 
-        //     // Parse the chunk
+        //     // reader
+        //     //     .take(input_len as u64) // Create a new reader that only allows reading up to the input length.
+        //     //     .read_to_end(&mut chunk) // Read until the new reader EOFs which is when the buffer is full.
+        //     //     .map_err(|x| JpegParseError::segment_invalid().with_io_source(x))?;
 
+        //     // Parse any segements out of the chunk of data
         //     // Switch on metadata types by APP location and type header
 
         //     // Read another chunk
-        //     chunk.clear();
+        //     // chunk.clear();
         // }
 
         Ok(Self { jfif: None })
     }
 
-    // Determine if the given reader is reading a jpeg source
-    pub fn is_jpeg(reader: &mut impl io::Read) -> bool {
-        let mut buf = [0u8; 2];
-        return reader.by_ref().read_exact(&mut buf).is_ok() && buf == JPEG_HEADER;
+    // Determine if the given header is from a jpeg source
+    pub fn is_jpeg(header: &[u8]) -> bool {
+        header.starts_with(&JPEG_HEADER)
     }
 }
 
@@ -115,10 +121,10 @@ fn parse_segment(input: &[u8]) -> Result<(&[u8], Segment), JpegParseError> {
 /// * (1 byte) number e.g. `0xE0`
 fn parse_marker(input: &[u8]) -> Result<(&[u8], [u8; 2]), JpegParseError> {
     nom::sequence::preceded(
-        nom_bytes::tag::<[u8; 1], &[u8], NomError<&[u8]>>(JPEG_MARKER_PREFIX),
+        nom_bytes::tag::<[u8; 1], &[u8], NomError<&[u8]>>([JPEG_MARKER_PREFIX]),
         nom_nums::u8,
     )(input)
-    .map(|(remain, num)| (remain, [JPEG_MARKER_PREFIX[0], num]))
+    .map(|(remain, num)| (remain, [JPEG_MARKER_PREFIX, num]))
     .map_err(|e| JpegParseError::segment_marker_invalid().with_nom_source(e))
 }
 
@@ -142,15 +148,6 @@ fn parse_data(input: &[u8], length: u16) -> Result<(&[u8], Vec<u8>), JpegParseEr
     Ok((remain, vec))
 }
 
-struct SegmentIter;
-impl Iterator for SegmentIter {
-    type Item = Segment;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        todo!()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,16 +157,12 @@ mod tests {
         0x48, 0x00, 0x00,
     ];
 
-    #[test]
-    fn test_segment_iterator() {
-        for segment in SegmentIter {
-            println!("{:?}", segment.marker);
-        }
-        // let (_, segment) = parse_segment(&JPEG_DATA_1[2..]).unwrap();
-        // assert_eq!(segment.marker, APP1);
-        // assert_eq!(segment.length, 860);
-        // assert_eq!(segment.data.len(), 860);
-    }
+    // #[test]
+    // fn test_parse() {
+    //     let mut data = io::Cursor::new([0xFF, 0xD8, 0x00, 0x00, 0xFF, 0xE1]);
+    //     let err = Jpeg::parse(&mut data).unwrap_err();
+    //     assert_eq!(err.to_string(), "jpeg segment invalid");
+    // }
 
     #[test]
     fn test_parse_header_invalid() {
@@ -184,6 +177,12 @@ mod tests {
     fn test_parse_header_valid() {
         let mut header = io::Cursor::new(JPEG_HEADER);
         assert!(Jpeg::parse(&mut header).is_ok());
+    }
+
+    #[test]
+    fn test_is_jpeg() {
+        assert_eq!(Jpeg::is_jpeg(&JPEG_HEADER), true);
+        assert_eq!(Jpeg::is_jpeg(&[0xFF, 0xF0]), false);
     }
 
     #[test]

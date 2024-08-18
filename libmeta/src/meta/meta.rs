@@ -1,4 +1,4 @@
-use std::{any::Any, fmt, io};
+use std::io::{self, Read};
 
 use super::Kind;
 use crate::{
@@ -29,12 +29,15 @@ pub enum Meta {
 
 impl Meta {
     /// Discover the media type and create a new instance based on that type
-    pub fn parse(mut reader: impl io::Read) -> Result<Self, MetaError> {
-        let mut buf = [0u8; 2];
-        reader.read_exact(&mut buf)?;
-        match buf {
-            formats::JPEG_HEADER => Ok(Self::Jpeg(Jpeg::parse(reader)?)),
-            _ => Err(MetaError::unknown_header(&buf)),
+    pub fn parse<T: io::BufRead + io::Seek>(reader: &mut T) -> Result<Self, MetaError> {
+        let mut header = Vec::new();
+        reader.take(2).read_to_end(&mut header)?;
+
+        // Check the header to determine the media type
+        if Jpeg::is_jpeg(&header) {
+            Ok(Self::Jpeg(Jpeg::parse(header.chain(reader))?))
+        } else {
+            Err(MetaError::unknown_header(&header))
         }
     }
 
@@ -60,32 +63,29 @@ impl Meta {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use formats::JPEG_HEADER;
 
     #[test]
-    fn test_new_meta_is_valid_jpeg() {
-        let mut header = io::Cursor::new(&[0xFF, 0xD8]);
-        let meta = Meta::parse(&mut header);
-        assert!(meta.is_ok());
-        assert!(meta.unwrap().kind() == Kind::Jpeg);
+    fn test_meta_parse_header_is_valid_jpeg() {
+        let mut header = io::Cursor::new(JPEG_HEADER);
+        let meta = Meta::parse(&mut header).unwrap();
+        assert_eq!(meta.kind(), Kind::Jpeg);
     }
 
     #[test]
-    fn test_new_meta_is_not_valid() {
+    fn test_meta_parse_not_enough_data() {
+        let mut header = io::Cursor::new(&[0xFF]);
+        let err = Meta::parse(&mut header).unwrap_err();
+        assert_eq!(err.to_string(), "metadata unknown header [ff]");
+    }
+
+    #[test]
+    fn test_meta_parse_header_is_invalid() {
         // unknown header type
         let mut header = io::Cursor::new(&[0xFF, 0x00]);
         assert_eq!(
             Meta::parse(&mut header).unwrap_err().to_string(),
             "metadata unknown header [ff, 00]"
-        );
-
-        // bad header length
-        let mut header = io::Cursor::new(&[0xFF]);
-        let err = Meta::parse(&mut header).unwrap_err();
-
-        assert_eq!(err.to_string(), "metadata file read failed");
-        assert_eq!(
-            err.as_ref().source().unwrap().to_string(),
-            "io::Error: failed to fill whole buffer"
         );
     }
 }

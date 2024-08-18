@@ -11,100 +11,64 @@ pub struct JpegParseError {
 }
 
 impl JpegParseError {
-    pub fn header_invalid() -> Self {
+    pub fn new(kind: JpegParseErrorKind) -> Self {
         Self {
             data: Box::new([]),
-            kind: JpegParseErrorKind::HeaderInvalid,
+            kind,
             source: None,
         }
+    }
+
+    pub fn header_invalid() -> Self {
+        JpegParseError::new(JpegParseErrorKind::HeaderInvalid)
+    }
+
+    pub fn read_failed() -> Self {
+        JpegParseError::new(JpegParseErrorKind::ReadFailed)
     }
 
     pub fn jfif_identifier_invalid() -> Self {
-        Self {
-            data: Box::new([]),
-            kind: JpegParseErrorKind::JfifIdentifierInvalid,
-            source: None,
-        }
+        JpegParseError::new(JpegParseErrorKind::JfifIdentifierInvalid)
     }
 
     pub fn jfif_version_invalid() -> Self {
-        Self {
-            data: Box::new([]),
-            kind: JpegParseErrorKind::JfifVersionInvalid,
-            source: None,
-        }
+        JpegParseError::new(JpegParseErrorKind::JfifVersionInvalid)
     }
 
     pub fn jfif_density_units_invalid() -> Self {
-        Self {
-            data: Box::new([]),
-            kind: JpegParseErrorKind::JfifDensityUnitsInvalid,
-            source: None,
-        }
+        JpegParseError::new(JpegParseErrorKind::JfifDensityUnitsInvalid)
     }
 
     pub fn jfif_density_units_unknown() -> Self {
-        Self {
-            data: Box::new([]),
-            kind: JpegParseErrorKind::JfifDensityUnitsUnknown,
-            source: None,
-        }
+        JpegParseError::new(JpegParseErrorKind::JfifDensityUnitsUnknown)
     }
 
     pub fn jfif_thumbnail_invalid() -> Self {
-        Self {
-            data: Box::new([]),
-            kind: JpegParseErrorKind::JfifThumbnailInvalid,
-            source: None,
-        }
+        JpegParseError::new(JpegParseErrorKind::JfifThumbnailInvalid)
     }
 
     pub fn jfif_thumbnail_dimensions_invalid() -> Self {
-        Self {
-            data: Box::new([]),
-            kind: JpegParseErrorKind::JfifThumbnailDimensionsInvalid,
-            source: None,
-        }
+        JpegParseError::new(JpegParseErrorKind::JfifThumbnailDimensionsInvalid)
     }
 
     pub fn segment_invalid() -> Self {
-        Self {
-            data: Box::new([]),
-            kind: JpegParseErrorKind::JpegSegmentInvalid,
-            source: None,
-        }
+        JpegParseError::new(JpegParseErrorKind::JpegSegmentInvalid)
     }
 
     pub fn segment_marker_invalid() -> Self {
-        Self {
-            data: Box::new([]),
-            kind: JpegParseErrorKind::JpegSegmentMarkerInvalid,
-            source: None,
-        }
+        JpegParseError::new(JpegParseErrorKind::JpegSegmentMarkerInvalid)
     }
 
     pub fn segment_length_invalid() -> Self {
-        Self {
-            data: Box::new([]),
-            kind: JpegParseErrorKind::JpegSegmentLengthInvalid,
-            source: None,
-        }
+        JpegParseError::new(JpegParseErrorKind::JpegSegmentLengthInvalid)
     }
 
     pub fn segment_data_invalid() -> Self {
-        Self {
-            data: Box::new([]),
-            kind: JpegParseErrorKind::JpegSegmentDataInvalid,
-            source: None,
-        }
+        JpegParseError::new(JpegParseErrorKind::JpegSegmentDataInvalid)
     }
 
     pub fn segment_marker_unknown(marker: &[u8]) -> Self {
-        Self {
-            data: marker.into(),
-            kind: JpegParseErrorKind::JpegSegmentMarkerUnknown,
-            source: None,
-        }
+        JpegParseError::new(JpegParseErrorKind::JpegSegmentMarkerUnknown).with_data(marker)
     }
 
     // Add additional error data for output with the error message
@@ -140,6 +104,7 @@ impl fmt::Display for JpegParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
             JpegParseErrorKind::HeaderInvalid => write!(f, "JPEG header is invalid")?,
+            JpegParseErrorKind::ReadFailed => write!(f, "JPEG read failed")?,
             JpegParseErrorKind::JfifIdentifierInvalid => write!(f, "JFIF identifier invalid")?,
             JpegParseErrorKind::JfifVersionInvalid => write!(f, "JFIF version invalid")?,
             JpegParseErrorKind::JfifDensityUnitsInvalid => write!(f, "JFIF density units invalid")?,
@@ -188,6 +153,7 @@ impl AsRef<dyn Error> for JpegParseError {
 #[non_exhaustive]
 pub enum JpegParseErrorKind {
     HeaderInvalid,
+    ReadFailed,
     JfifIdentifierInvalid,
     JfifVersionInvalid,
     JfifDensityUnitsInvalid,
