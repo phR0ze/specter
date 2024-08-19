@@ -2,16 +2,16 @@
 // -------------------------------------------------------------------------------------------------
 use std::{error::Error, fmt};
 
-use libmeta::errors::JpegParseError;
+use libmeta::errors::JpegError;
 
 // Tier 2 error type
 // -------------------------------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct JpegSegmentError {
-    source: JpegParseError,
+    source: JpegError,
 }
-impl From<JpegParseError> for JpegSegmentError {
-    fn from(source: JpegParseError) -> Self {
+impl From<JpegError> for JpegSegmentError {
+    fn from(source: JpegError) -> Self {
         Self { source }
     }
 }
@@ -50,7 +50,7 @@ impl Error for JpegMetaError {
 
 // Tier 1 error handling
 // -------------------------------------------------------------------------------------------------
-fn first_level_error() -> Result<(), JpegParseError> {
+fn first_level_error() -> Result<(), JpegError> {
     let marker: [u8; 1] = [0xFF];
 
     match nom::sequence::preceded(
@@ -59,7 +59,7 @@ fn first_level_error() -> Result<(), JpegParseError> {
     )(&[0x00])
     {
         Ok((_, _)) => Ok(()),
-        Err(e) => Err(JpegParseError::segment_marker_invalid().with_nom_source(e)),
+        Err(e) => Err(JpegError::segment_marker_invalid().with_nom_source(e)),
     }
 }
 

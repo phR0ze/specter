@@ -6,7 +6,7 @@ use std::io::{self, prelude::*};
 
 use super::*;
 use crate::{
-    errors::{CastError, JpegParseError, MetaError},
+    errors::{CastError, JpegError, JpegErrorKind, MetaError},
     Kind, Meta,
 };
 
@@ -42,45 +42,86 @@ impl Segment {
 #[derive(Debug)]
 pub struct Jpeg {
     pub jfif: Option<Jfif>,
+    pub exif: Option<Exif>,
 }
 
 impl Jpeg {
     /// Parse the JPEG
-    pub fn parse(mut reader: impl io::BufRead) -> Result<Self, JpegParseError> {
+    pub fn parse(mut reader: impl io::BufRead) -> Result<Self, JpegError> {
+        let mut jpeg = Self {
+            jfif: None,
+            exif: None,
+        };
+
         // Ensure we are dealing with a JPEG
         let mut header = [0u8; 2];
         reader
             .by_ref()
             .read_exact(&mut header)
-            .map_err(|x| JpegParseError::read_failed().with_io_source(x))?;
+            .map_err(|x| JpegError::read_failed().with_io_source(x))?;
         if !Jpeg::is_jpeg(&header) {
-            return Err(JpegParseError::header_invalid());
+            return Err(JpegError::header_invalid());
         }
+
+        // JPEG
+        let chunk_len = 10;
 
         // Loop over the source reading chunks of data and parsing into segments.
         // * Progressively load more data until all segments are parsed, but bail before
         //   reading the actual image data to avoid the unnecessary overhead.
         // * Break out into a multi-threaded approach later for performance?
-        let mut buf: Vec<u8> = Vec::with_capacity(4096);
-        // loop {
-        //     // Defensively discard unrecognized bytes up to next marker in an attempt
-        //     // to recover from a corrupt JPEG source. Includes the prefix marker.
-        //     // reader.read_until(JPEG_MARKER_PREFIX, &mut Vec::new());
+        let mut eof = false;
+        let mut more_data_needed = false;
+        let mut unused: Vec<u8> = Vec::with_capacity(4096);
+        loop {
+            // Defensively discard unrecognized bytes up to next marker in an attempt to recover
+            // from a corrupt JPEG source. read_until will also discard the target value.
+            // reader.read_until(JPEG_MARKER_PREFIX, &mut Vec::new());
 
-        //     reader
-        //         .by_ref() // Ensure we are not consuming the reader with take()
-        //         .take(10) // Use a larger value like 4096 for production
-        //         .read_to_end(&mut buf) // Read until the new reader EOFs
-        //         .map_err(|x| JpegParseError::segment_invalid().with_io_source(x))?;
+            // Read the next chunk of data and store it in the buffer
+            let mut buf: Vec<u8> = Vec::with_capacity(chunk_len);
+            match reader
+                .by_ref() // Ensure we are not consuming the reader with take()
+                .take(chunk_len as u64) // Use a larger value like 4096 for production
+                .read_to_end(&mut buf) // Read until the new reader EOFs
+                {
+                    Ok(0) => eof = true,
+                    Err(e) => return Err(JpegError::read_failed().with_io_source(e)),
+                    _ => (),
+                }
 
-        //     // Parse any segements out of the chunk of data
-        //     // Switch on metadata types by APP location and type header
+            // Parse segements switching on APP type header
+            match parse_segment(&buf) {
+                Ok((remain, segment)) => match segment.marker {
+                    marker::APP0 => {
+                        jpeg.jfif = Some(Jfif::parse(&segment.data)?);
+                    }
+                    marker::APP1 => {
+                        jpeg.exif = Some(Exif::parse(&segment.data)?);
+                    }
+                    // check for last segment?
+                    _ => {
+                        return Err(JpegError::segment_marker_unknown(remain));
+                    }
+                },
+                Err(JpegError {
+                    kind: JpegErrorKind::NotEnoughData,
+                    ..
+                }) => {
+                    more_data_needed = true;
+                }
+                Err(e) => {
+                    return Err(JpegError::failed().wrap(e));
+                }
+            }
 
-        //     // Read another chunk
-        //     // buf.clear();
-        // }
+            // Reset buffer to just unconsumed data
 
-        Ok(Self { jfif: None })
+            // buf.clear();
+            break;
+        }
+
+        Ok(jpeg)
     }
 
     // Determine if the given header is from a jpeg source
@@ -93,7 +134,7 @@ impl Jpeg {
 /// * (1 byte)  Marker prefix e.g `0xFF`
 /// * (1 byte)  Marker Number e.g. `0xE0`
 /// * (2 bytes) Data size, including 2 size bytes, in Big Endian e.g. e.g 0x00 0x10 = 14 bytes
-fn parse_segment(input: &[u8]) -> Result<(&[u8], Segment), JpegParseError> {
+fn parse_segment(input: &[u8]) -> Result<(&[u8], Segment), JpegError> {
     let (remain, marker) = parse_marker(input)?;
 
     // Match marker and parse the corresponding segment type
@@ -103,34 +144,34 @@ fn parse_segment(input: &[u8]) -> Result<(&[u8], Segment), JpegParseError> {
             let (remain, data) = parse_data(remain, length)?;
             Ok((remain, Segment::new(marker, length, data)))
         }
-        _ => Err(JpegParseError::segment_marker_unknown(&marker)),
+        _ => Err(JpegError::segment_marker_unknown(&marker)),
     }
 }
 
 /// Parse out a JPEG marker which is a 2 byte value consisting of:
 /// * (1 byte) magic hex value `0xFF`
 /// * (1 byte) number e.g. `0xE0`
-fn parse_marker(input: &[u8]) -> Result<(&[u8], [u8; 2]), JpegParseError> {
+fn parse_marker(input: &[u8]) -> Result<(&[u8], [u8; 2]), JpegError> {
     nom::sequence::preceded(
         nom_bytes::tag::<[u8; 1], &[u8], NomError<&[u8]>>([marker::PREFIX]),
         nom_nums::u8,
     )(input)
     .map(|(remain, num)| (remain, [marker::PREFIX, num]))
-    .map_err(|e| JpegParseError::segment_marker_invalid().with_nom_source(e))
+    .map_err(|e| JpegError::segment_marker_invalid().with_nom_source(e))
 }
 
 /// Parse out a JPEG segment length 2 byte in Big Endian format that includes the 2 size bytes.
 /// Thus a length of `0x00 0x10` would be length 14 not 16.
-fn parse_length(input: &[u8]) -> Result<(&[u8], u16), JpegParseError> {
+fn parse_length(input: &[u8]) -> Result<(&[u8], u16), JpegError> {
     let (remain, length) = nom_nums::be_u16(input)
-        .map_err(|x| JpegParseError::segment_length_invalid().with_nom_source(x))?;
+        .map_err(|x| JpegError::segment_length_invalid().with_nom_source(x))?;
     Ok((remain, length - 2))
 }
 
 /// Parse out a JPEG segment data.
-fn parse_data(input: &[u8], length: u16) -> Result<(&[u8], Vec<u8>), JpegParseError> {
+fn parse_data(input: &[u8], length: u16) -> Result<(&[u8], Vec<u8>), JpegError> {
     let (remain, data) = nom::multi::count(nom_nums::u8, length as usize)(input)
-        .map_err(|x| JpegParseError::segment_data_invalid().with_nom_source(x))?;
+        .map_err(|x| JpegError::segment_data_invalid().with_nom_source(x))?;
 
     // Convert the data to a vector
     let mut vec = Vec::with_capacity(length as usize);
@@ -155,7 +196,7 @@ mod tests {
         let mut header = io::Cursor::new([0xFF, 0x00]);
         assert_eq!(
             Jpeg::parse(&mut header).unwrap_err().to_string(),
-            JpegParseError::header_invalid().to_string()
+            JpegError::header_invalid().to_string()
         );
     }
 
@@ -174,10 +215,7 @@ mod tests {
     #[test]
     fn test_parse_segment_ask_for_more_data() {
         let err = parse_segment(&[]).unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            JpegParseError::not_enough_data().to_string()
-        );
+        assert_eq!(err.to_string(), JpegError::not_enough_data().to_string());
         let err1 = err.as_ref().source().unwrap();
         assert_eq!(err1.to_string(), "nom::Parsing requires 1 bytes/chars");
     }
@@ -208,17 +246,14 @@ mod tests {
         let err = parse_segment(&[0xff, 0xe9]).unwrap_err();
         assert_eq!(
             err.to_string(),
-            JpegParseError::segment_marker_unknown(&[0xff, 0xe9]).to_string()
+            JpegError::segment_marker_unknown(&[0xff, 0xe9]).to_string()
         );
     }
 
     #[test]
     fn test_parse_data_ask_for_more_data() {
         let err = parse_data(&[], 20).unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            JpegParseError::not_enough_data().to_string()
-        );
+        assert_eq!(err.to_string(), JpegError::not_enough_data().to_string());
         let err1 = err.as_ref().source().unwrap();
         assert_eq!(err1.to_string(), "nom::Parsing requires 1 bytes/chars");
     }
@@ -233,10 +268,7 @@ mod tests {
     #[test]
     fn test_parse_length_ask_for_more_data() {
         let err = parse_length(&[]).unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            JpegParseError::not_enough_data().to_string()
-        );
+        assert_eq!(err.to_string(), JpegError::not_enough_data().to_string());
         let err1 = err.as_ref().source().unwrap();
         assert_eq!(err1.to_string(), "nom::Parsing requires 2 bytes/chars");
     }
@@ -258,10 +290,7 @@ mod tests {
     #[test]
     fn test_parse_marker_ask_for_more_data() {
         let err = parse_marker(&[0xFF]).unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            JpegParseError::not_enough_data().to_string()
-        );
+        assert_eq!(err.to_string(), JpegError::not_enough_data().to_string());
         let err1 = err.as_ref().source().unwrap();
         assert_eq!(err1.to_string(), "nom::Parsing requires 1 bytes/chars");
     }
@@ -281,7 +310,7 @@ mod tests {
 
         assert_eq!(
             err.to_string(),
-            JpegParseError::segment_marker_invalid().to_string()
+            JpegError::segment_marker_invalid().to_string()
         );
         assert_eq!(
             err.as_ref().source().unwrap().to_string(),

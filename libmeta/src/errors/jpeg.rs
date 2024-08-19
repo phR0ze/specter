@@ -4,14 +4,14 @@ use super::ContextError;
 
 #[derive(Debug)]
 #[non_exhaustive] // allow for future error fields
-pub struct JpegParseError {
+pub struct JpegError {
+    pub kind: JpegErrorKind,      // extensible kind messaging
     data: Box<[u8]>,              // additional error data
-    kind: JpegParseErrorKind,     // extensible kind messaging
     source: Option<ContextError>, // optional extensible source error
 }
 
-impl JpegParseError {
-    pub fn new(kind: JpegParseErrorKind) -> Self {
+impl JpegError {
+    pub fn new(kind: JpegErrorKind) -> Self {
         Self {
             data: Box::new([]),
             kind,
@@ -19,60 +19,64 @@ impl JpegParseError {
         }
     }
 
+    pub fn failed() -> Self {
+        JpegError::new(JpegErrorKind::Failed)
+    }
+
     pub fn header_invalid() -> Self {
-        JpegParseError::new(JpegParseErrorKind::HeaderInvalid)
+        JpegError::new(JpegErrorKind::HeaderInvalid)
     }
 
     pub fn not_enough_data() -> Self {
-        JpegParseError::new(JpegParseErrorKind::NotEnoughData)
+        JpegError::new(JpegErrorKind::NotEnoughData)
     }
 
     pub fn read_failed() -> Self {
-        JpegParseError::new(JpegParseErrorKind::ReadFailed)
+        JpegError::new(JpegErrorKind::ReadFailed)
     }
 
     pub fn jfif_identifier_invalid() -> Self {
-        JpegParseError::new(JpegParseErrorKind::JfifIdentifierInvalid)
+        JpegError::new(JpegErrorKind::JfifIdentifierInvalid)
     }
 
     pub fn jfif_version_invalid() -> Self {
-        JpegParseError::new(JpegParseErrorKind::JfifVersionInvalid)
+        JpegError::new(JpegErrorKind::JfifVersionInvalid)
     }
 
     pub fn jfif_density_units_invalid() -> Self {
-        JpegParseError::new(JpegParseErrorKind::JfifDensityUnitsInvalid)
+        JpegError::new(JpegErrorKind::JfifDensityUnitsInvalid)
     }
 
     pub fn jfif_density_units_unknown() -> Self {
-        JpegParseError::new(JpegParseErrorKind::JfifDensityUnitsUnknown)
+        JpegError::new(JpegErrorKind::JfifDensityUnitsUnknown)
     }
 
     pub fn jfif_thumbnail_invalid() -> Self {
-        JpegParseError::new(JpegParseErrorKind::JfifThumbnailInvalid)
+        JpegError::new(JpegErrorKind::JfifThumbnailInvalid)
     }
 
     pub fn jfif_thumbnail_dimensions_invalid() -> Self {
-        JpegParseError::new(JpegParseErrorKind::JfifThumbnailDimensionsInvalid)
+        JpegError::new(JpegErrorKind::JfifThumbnailDimensionsInvalid)
     }
 
     pub fn segment_invalid() -> Self {
-        JpegParseError::new(JpegParseErrorKind::JpegSegmentInvalid)
+        JpegError::new(JpegErrorKind::JpegSegmentInvalid)
     }
 
     pub fn segment_marker_invalid() -> Self {
-        JpegParseError::new(JpegParseErrorKind::JpegSegmentMarkerInvalid)
+        JpegError::new(JpegErrorKind::JpegSegmentMarkerInvalid)
     }
 
     pub fn segment_length_invalid() -> Self {
-        JpegParseError::new(JpegParseErrorKind::JpegSegmentLengthInvalid)
+        JpegError::new(JpegErrorKind::JpegSegmentLengthInvalid)
     }
 
     pub fn segment_data_invalid() -> Self {
-        JpegParseError::new(JpegParseErrorKind::JpegSegmentDataInvalid)
+        JpegError::new(JpegErrorKind::JpegSegmentDataInvalid)
     }
 
     pub fn segment_marker_unknown(marker: &[u8]) -> Self {
-        JpegParseError::new(JpegParseErrorKind::JpegSegmentMarkerUnknown).with_data(marker)
+        JpegError::new(JpegErrorKind::JpegSegmentMarkerUnknown).with_data(marker)
     }
 
     // Add additional error data for output with the error message
@@ -89,10 +93,10 @@ impl JpegParseError {
     // Add a nom source error and override the kind in particular cases
     pub fn with_nom_source(mut self, source: nom::Err<nom::error::Error<&[u8]>>) -> Self {
         if let nom::Err::Incomplete(_) = source {
-            self.kind = JpegParseErrorKind::NotEnoughData;
+            self.kind = JpegErrorKind::NotEnoughData;
         } else {
             if source.to_string().contains("requires") {
-                self.kind = JpegParseErrorKind::NotEnoughData;
+                self.kind = JpegErrorKind::NotEnoughData;
             }
         }
         self.with_source("nom::", source)
@@ -111,31 +115,26 @@ impl JpegParseError {
     }
 }
 
-impl fmt::Display for JpegParseError {
+impl fmt::Display for JpegError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
-            JpegParseErrorKind::HeaderInvalid => write!(f, "JPEG header is invalid")?,
-            JpegParseErrorKind::NotEnoughData => write!(f, "JPEG not enough data")?,
-            JpegParseErrorKind::ReadFailed => write!(f, "JPEG read failed")?,
-            JpegParseErrorKind::JfifIdentifierInvalid => write!(f, "JFIF identifier invalid")?,
-            JpegParseErrorKind::JfifVersionInvalid => write!(f, "JFIF version invalid")?,
-            JpegParseErrorKind::JfifDensityUnitsInvalid => write!(f, "JFIF density units invalid")?,
-            JpegParseErrorKind::JfifDensityUnitsUnknown => write!(f, "JFIF density units unknown")?,
-            JpegParseErrorKind::JfifThumbnailInvalid => write!(f, "JFIF thumbnail invalid")?,
-            JpegParseErrorKind::JfifThumbnailDimensionsInvalid => {
+            JpegErrorKind::Failed => write!(f, "JPEG parse failed")?,
+            JpegErrorKind::HeaderInvalid => write!(f, "JPEG header is invalid")?,
+            JpegErrorKind::NotEnoughData => write!(f, "JPEG not enough data")?,
+            JpegErrorKind::ReadFailed => write!(f, "JPEG read failed")?,
+            JpegErrorKind::JfifIdentifierInvalid => write!(f, "JFIF identifier invalid")?,
+            JpegErrorKind::JfifVersionInvalid => write!(f, "JFIF version invalid")?,
+            JpegErrorKind::JfifDensityUnitsInvalid => write!(f, "JFIF density units invalid")?,
+            JpegErrorKind::JfifDensityUnitsUnknown => write!(f, "JFIF density units unknown")?,
+            JpegErrorKind::JfifThumbnailInvalid => write!(f, "JFIF thumbnail invalid")?,
+            JpegErrorKind::JfifThumbnailDimensionsInvalid => {
                 write!(f, "JFIF thumbnail dimensions invalid")?
             }
-            JpegParseErrorKind::JpegSegmentInvalid => write!(f, "JPEG segment invalid")?,
-            JpegParseErrorKind::JpegSegmentMarkerInvalid => {
-                write!(f, "JPEG segment marker invalid")?
-            }
-            JpegParseErrorKind::JpegSegmentMarkerUnknown => {
-                write!(f, "JPEG segment marker unknown")?
-            }
-            JpegParseErrorKind::JpegSegmentLengthInvalid => {
-                write!(f, "JPEG segment length invalid")?
-            }
-            JpegParseErrorKind::JpegSegmentDataInvalid => write!(f, "JPEG segment data invalid")?,
+            JpegErrorKind::JpegSegmentInvalid => write!(f, "JPEG segment invalid")?,
+            JpegErrorKind::JpegSegmentMarkerInvalid => write!(f, "JPEG segment marker invalid")?,
+            JpegErrorKind::JpegSegmentMarkerUnknown => write!(f, "JPEG segment marker unknown")?,
+            JpegErrorKind::JpegSegmentLengthInvalid => write!(f, "JPEG segment length invalid")?,
+            JpegErrorKind::JpegSegmentDataInvalid => write!(f, "JPEG segment data invalid")?,
         };
 
         // Display additional error data if available
@@ -145,7 +144,7 @@ impl fmt::Display for JpegParseError {
         Ok(())
     }
 }
-impl Error for JpegParseError {
+impl Error for JpegError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.source {
             Some(source) => Some(source),
@@ -155,7 +154,7 @@ impl Error for JpegParseError {
 }
 
 // Provides a way to get the generic Error type
-impl AsRef<dyn Error> for JpegParseError {
+impl AsRef<dyn Error> for JpegError {
     fn as_ref(&self) -> &(dyn Error + 'static) {
         self
     }
@@ -163,7 +162,8 @@ impl AsRef<dyn Error> for JpegParseError {
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum JpegParseErrorKind {
+pub enum JpegErrorKind {
+    Failed,
     HeaderInvalid,
     NotEnoughData,
     ReadFailed,
@@ -186,8 +186,8 @@ mod tests {
 
     use super::*;
 
-    fn jpeg_error_as_result() -> Result<(), JpegParseError> {
-        Err(JpegParseError::segment_marker_invalid().with_data(&[0x00, 0x01]))
+    fn jpeg_error_as_result() -> Result<(), JpegError> {
+        Err(JpegError::segment_marker_invalid().with_data(&[0x00, 0x01]))
     }
 
     #[test]
@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn test_segment_marker_invalid_without_data() {
         assert_eq!(
-            JpegParseError::segment_marker_invalid().to_string(),
+            JpegError::segment_marker_invalid().to_string(),
             "JPEG segment marker invalid"
         );
     }
@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn test_segment_marker_invalid_with_data() {
         assert_eq!(
-            JpegParseError::segment_marker_invalid()
+            JpegError::segment_marker_invalid()
                 .with_data(&[0x00, 0x01])
                 .to_string(),
             "JPEG segment marker invalid [00, 01]"
@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_segment_marker_invalid_with_data_and_source() {
-        let err = JpegParseError::segment_marker_invalid()
+        let err = JpegError::segment_marker_invalid()
             .with_data(&[0x00, 0x01])
             .with_source(
                 "nom::",
@@ -233,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_segment_marker_invalid_with_data_and_io_source() {
-        let err = JpegParseError::segment_marker_invalid()
+        let err = JpegError::segment_marker_invalid()
             .with_data(&[0x00, 0x01])
             .with_io_source(io::Error::from(io::ErrorKind::NotFound));
         assert_eq!(err.to_string(), "JPEG segment marker invalid [00, 01]");

@@ -2,7 +2,7 @@ use std::{error::Error, fmt, io};
 
 use crate::Meta;
 
-use super::{ContextError, JpegParseError};
+use super::{ContextError, JpegError};
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -65,8 +65,8 @@ impl From<io::Error> for MetaError {
     }
 }
 
-impl From<JpegParseError> for MetaError {
-    fn from(e: JpegParseError) -> Self {
+impl From<JpegError> for MetaError {
+    fn from(e: JpegError) -> Self {
         Self {
             data: Box::new([]),
             kind: MetaErrorKind::Jpeg,
@@ -94,7 +94,7 @@ pub enum MetaErrorKind {
 #[non_exhaustive]
 pub enum MetaErrorSource {
     Io(ContextError),
-    JpegParse(JpegParseError),
+    JpegParse(JpegError),
 }
 
 #[cfg(test)]

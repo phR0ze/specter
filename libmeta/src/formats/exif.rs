@@ -1,6 +1,6 @@
 use nom::{bytes::streaming as nom_bytes, error::Error as NomError, number::streaming as nom_nums};
 
-use crate::errors::JpegParseError;
+use crate::errors::JpegError;
 
 const JFIF_IDENTIFIER: [u8; 4] = [0x4A, 0x46, 0x49, 0x46];
 
@@ -24,7 +24,7 @@ impl Exif {
     /// * *Xthumbnail*     | 1     | `0x00` Horizontal pixels of the embedded RGB thumbnail, May be zero
     /// * *Ythumbnail*     | 1     | `0x00` Vertical pixels of the embedded RGB thumbnail, May be zero
     /// * *Thumbnail data* | 3 x n | Uncompressed 24 bit RGB (8 bits per color channel) raster thumbnail
-    pub fn parse(input: &[u8]) -> Result<Exif, JpegParseError> {
+    pub fn parse(input: &[u8]) -> Result<Exif, JpegError> {
         let mut exif = Exif::default();
 
         Ok(exif)
