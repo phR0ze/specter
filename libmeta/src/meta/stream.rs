@@ -2,9 +2,9 @@ use std::io;
 
 const chunk_len: usize = 10; // Use 4096 bytes or 4KB buffer in production
 
-///
+/// Stream bytes from the media source.
+/// Data accumulates until acked by the caller.
 pub struct Stream<'a> {
-    //buffer: [u8; chunk_len as usize],
     buffer: Vec<u8>,
     reader: &'a mut dyn io::BufRead,
 }
@@ -55,7 +55,7 @@ impl<'a> Iterator for Stream<'a> {
         //     }
         //     Err(e) => Some(Err(e)),
         // }
-        // // self.buffer.extend_from_slice(&buf);
+        // self.buffer.extend_from_slice(&buf);
         None
     }
 }
@@ -84,22 +84,18 @@ mod tests {
         // assert_eq!(segment.data.len(), 860);
     }
 
-    fn read_at_most<T: io::BufRead>(
-        reader: &mut T,
-        buffer: &mut Vec<u8>,
-    ) -> Result<usize, io::Error> {
-        reader.by_ref().take(5).read_to_end(buffer)
-    }
-
     #[test]
-    fn test_read_at_most() {
+    fn test_read_at_most_read_all() {
         let data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
         let mut reader = io::Cursor::new(data);
 
-        let mut buf = Vec::new();
-        let res = read_at_most(&mut reader, &mut buf);
-        assert_eq!(res.unwrap(), buf.len());
-        assert_eq!(buf, data[0..5]);
+        let mut collected = Vec::new();
+        let mut buf = [0u8; 6];
+        let n = Stream::new(&mut reader).read_at_most(&mut buf).unwrap();
+        assert_eq!(n, 6);
+        assert_eq!(buf, data);
+        collected.extend_from_slice(&buf);
+        assert_eq!(collected, data);
     }
 
     #[test]
@@ -108,8 +104,8 @@ mod tests {
         let mut reader = io::Cursor::new(data);
 
         let mut buf = [0u8; 5];
-        let res = Stream::new(&mut reader).read_at_most(&mut buf);
-        assert_eq!(res.unwrap(), buf.len());
+        let n = Stream::new(&mut reader).read_at_most(&mut buf).unwrap();
+        assert_eq!(n, 5);
         assert_eq!(buf, data[0..5]);
     }
 }

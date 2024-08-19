@@ -1,27 +1,8 @@
-use nom::{bytes::streaming as nom_bytes, error::Error as NomError, number::streaming as nom_nums};
+use nom::number::streaming as nom_nums;
 
 use crate::errors::JpegError;
 
 const JFIF_IDENTIFIER: [u8; 4] = [0x4A, 0x46, 0x49, 0x46];
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum DensityUnit {
-    PixelsPerInch,
-    PixelsPerCm,
-    None,
-    Unknown,
-}
-
-impl From<u8> for DensityUnit {
-    fn from(value: u8) -> Self {
-        match value {
-            0x00 => Self::None,
-            0x01 => Self::PixelsPerInch,
-            0x02 => Self::PixelsPerCm,
-            _ => Self::Unknown,
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct Jfif {
@@ -66,8 +47,8 @@ impl Jfif {
 
         // Parse the JFIF identifier and drop the results
         let (remain, _) = nom::sequence::terminated(
-            nom_bytes::tag::<[u8; 4], &[u8], NomError<&[u8]>>(JFIF_IDENTIFIER),
-            nom_bytes::tag::<[u8; 1], &[u8], NomError<&[u8]>>([0x00]),
+            nom::bytes::streaming::tag::<[u8; 4], &[u8], nom::error::Error<&[u8]>>(JFIF_IDENTIFIER),
+            nom::bytes::streaming::tag::<[u8; 1], &[u8], nom::error::Error<&[u8]>>([0x00]),
         )(input)
         .map_err(|x| JpegError::jfif_identifier_invalid().with_nom_source(x))?;
 
@@ -91,18 +72,37 @@ impl Jfif {
 
         // Parse the JFIF thumbnail dimensions
         let (remain, (x_thumbnail, y_thumbnail)) =
-            nom::sequence::tuple((nom_nums::u8, nom_nums::u8))(remain).map_err(|x| {
-                JpegError::jfif_thumbnail_dimensions_invalid().with_nom_source(x)
-            })?;
+            nom::sequence::tuple((nom_nums::u8, nom_nums::u8))(remain)
+                .map_err(|x| JpegError::jfif_thumbnail_dimensions_invalid().with_nom_source(x))?;
         jfif.x_thumbnail = x_thumbnail;
         jfif.y_thumbnail = y_thumbnail;
 
         // Check if a thumbnail was included
         if x_thumbnail != 0 && y_thumbnail != 0 {
+            // TODO: Parse the thumbnail data
             Err(JpegError::jfif_thumbnail_invalid())?;
         }
 
         Ok(jfif)
+    }
+}
+
+/// Jfif Density Units
+#[derive(Debug, Clone, PartialEq)]
+pub enum DensityUnit {
+    PixelsPerInch,
+    PixelsPerCm,
+    None,
+    Unknown,
+}
+impl From<u8> for DensityUnit {
+    fn from(value: u8) -> Self {
+        match value {
+            0x00 => Self::None,
+            0x01 => Self::PixelsPerInch,
+            0x02 => Self::PixelsPerCm,
+            _ => Self::Unknown,
+        }
     }
 }
 

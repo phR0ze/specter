@@ -4,10 +4,9 @@
 use nom::{bytes::streaming as nom_bytes, error::Error as NomError, number::streaming as nom_nums};
 use std::io::{self, prelude::*};
 
-use super::*;
 use crate::{
     errors::{CastError, JpegError, JpegErrorKind, MetaError},
-    Kind, Meta,
+    Exif, Jfif, Kind, Meta,
 };
 
 // JPEG Markers
@@ -39,94 +38,90 @@ impl Segment {
     }
 }
 
-#[derive(Debug)]
-pub struct Jpeg {
-    pub jfif: Option<Jfif>,
-    pub exif: Option<Exif>,
-}
+/// Parse all meta data from the given JPEG source.
+pub fn parse(mut reader: impl io::BufRead) -> Result<(Option<Jfif>, Option<Exif>), JpegError> {
+    let mut jfif: Option<Jfif> = None;
+    let mut exif: Option<Exif> = None;
 
-impl Jpeg {
-    /// Parse the JPEG
-    pub fn parse(mut reader: impl io::BufRead) -> Result<Self, JpegError> {
-        let mut jpeg = Self {
-            jfif: None,
-            exif: None,
-        };
+    // Check the header to determine the media type
+    parse_header(&mut reader)?;
 
-        // Ensure we are dealing with a JPEG
-        let mut header = [0u8; 2];
-        reader
-            .by_ref()
-            .read_exact(&mut header)
-            .map_err(|x| JpegError::read_failed().with_io_source(x))?;
-        if !Jpeg::is_jpeg(&header) {
-            return Err(JpegError::header_invalid());
+    let chunk_len = 10;
+
+    // Loop over the source reading chunks of data and parse it into segments.
+    // * Progressively load more data until all segments are parsed, but bail before
+    //   reading the actual image data to avoid the unnecessary overhead.
+    // * Break out into a multi-threaded approach later for performance, maybe?
+    //   Highest performance option is to use a single thread to read data in chunks in
+    //   a loop until all segments are parsed and image data is detected then abort.
+    //   Meanwhile a worker thread is spawned to parse the segmments in parallel.
+    let mut eof = false;
+    let mut more_data_needed = false;
+    let mut unused: Vec<u8> = Vec::with_capacity(4096); // rust std use 8k for most things
+    loop {
+        // Defensively discard unrecognized bytes up to next marker in an attempt to recover
+        // from a corrupt JPEG source. Note: read_until will also discard the target value.
+        // reader.read_until(JPEG_MARKER_PREFIX, &mut Vec::new());
+
+        // Read the next chunk of data and store it in the buffer
+        let mut buf: Vec<u8> = Vec::with_capacity(chunk_len);
+        match reader.by_ref().take(chunk_len as u64).read_to_end(&mut buf) {
+            Ok(0) => eof = true,
+            Err(e) => return Err(JpegError::read_failed().with_io_source(e)),
+            _ => (),
         }
 
-        // JPEG
-        let chunk_len = 10;
-
-        // Loop over the source reading chunks of data and parsing into segments.
-        // * Progressively load more data until all segments are parsed, but bail before
-        //   reading the actual image data to avoid the unnecessary overhead.
-        // * Break out into a multi-threaded approach later for performance?
-        let mut eof = false;
-        let mut more_data_needed = false;
-        let mut unused: Vec<u8> = Vec::with_capacity(4096);
-        loop {
-            // Defensively discard unrecognized bytes up to next marker in an attempt to recover
-            // from a corrupt JPEG source. read_until will also discard the target value.
-            // reader.read_until(JPEG_MARKER_PREFIX, &mut Vec::new());
-
-            // Read the next chunk of data and store it in the buffer
-            let mut buf: Vec<u8> = Vec::with_capacity(chunk_len);
-            match reader
-                .by_ref() // Ensure we are not consuming the reader with take()
-                .take(chunk_len as u64) // Use a larger value like 4096 for production
-                .read_to_end(&mut buf) // Read until the new reader EOFs
-                {
-                    Ok(0) => eof = true,
-                    Err(e) => return Err(JpegError::read_failed().with_io_source(e)),
-                    _ => (),
+        // Parse segements switching on APP segment header
+        match parse_segment(&buf) {
+            Ok((remain, segment)) => match segment.marker {
+                marker::APP0 => {
+                    jfif = Some(Jfif::parse(&segment.data)?);
                 }
-
-            // Parse segements switching on APP type header
-            match parse_segment(&buf) {
-                Ok((remain, segment)) => match segment.marker {
-                    marker::APP0 => {
-                        jpeg.jfif = Some(Jfif::parse(&segment.data)?);
-                    }
-                    marker::APP1 => {
-                        jpeg.exif = Some(Exif::parse(&segment.data)?);
-                    }
-                    // check for last segment?
-                    _ => {
-                        return Err(JpegError::segment_marker_unknown(remain));
-                    }
-                },
-                Err(JpegError {
-                    kind: JpegErrorKind::NotEnoughData,
-                    ..
-                }) => {
-                    more_data_needed = true;
+                marker::APP1 => {
+                    exif = Some(Exif::parse(&segment.data)?);
                 }
-                Err(e) => {
-                    return Err(JpegError::failed().wrap(e));
+                // check for last segment?
+                _ => {
+                    return Err(JpegError::segment_marker_unknown(remain));
                 }
+            },
+            Err(JpegError {
+                kind: JpegErrorKind::NotEnoughData,
+                ..
+            }) => {
+                more_data_needed = true;
             }
-
-            // Reset buffer to just unconsumed data
-
-            // buf.clear();
-            break;
+            Err(e) => {
+                return Err(JpegError::failed().wrap(e));
+            }
         }
 
-        Ok(jpeg)
+        // Broken JPEG source, no more data to read
+        if more_data_needed && eof {
+            return Err(JpegError::not_enough_data());
+        }
+        // buf.clear();
+        break;
     }
 
-    // Determine if the given header is from a jpeg source
-    pub fn is_jpeg(header: &[u8]) -> bool {
-        header.starts_with(&JPEG_HEADER)
+    Ok((jfif, exif))
+}
+
+// Determine if the given header is from a jpeg source
+pub fn is_jpeg(header: &[u8]) -> bool {
+    header.starts_with(&marker::HEADER)
+}
+fn parse_header(mut reader: impl io::BufRead) -> Result<bool, JpegError> {
+    let mut header = [0u8; 2];
+    reader
+        .by_ref()
+        .read_exact(&mut header)
+        .map_err(|x| JpegError::read_failed().with_io_source(x))?;
+    match is_jpeg(&header) {
+        true => Ok(true),
+        false => {
+            return Err(JpegError::header_invalid());
+        }
     }
 }
 
@@ -195,21 +190,21 @@ mod tests {
     fn test_parse_header_invalid() {
         let mut header = io::Cursor::new([0xFF, 0x00]);
         assert_eq!(
-            Jpeg::parse(&mut header).unwrap_err().to_string(),
+            parse_header(&mut header).unwrap_err().to_string(),
             JpegError::header_invalid().to_string()
         );
     }
 
     #[test]
     fn test_parse_header_valid() {
-        let mut header = io::Cursor::new(JPEG_HEADER);
-        assert!(Jpeg::parse(&mut header).is_ok());
+        let mut header = io::Cursor::new(marker::HEADER);
+        assert!(parse_header(&mut header).is_ok());
     }
 
     #[test]
     fn test_is_jpeg() {
-        assert_eq!(Jpeg::is_jpeg(&JPEG_HEADER), true);
-        assert_eq!(Jpeg::is_jpeg(&[0xFF, 0xF0]), false);
+        assert_eq!(is_jpeg(&marker::HEADER), true);
+        assert_eq!(is_jpeg(&[0xFF, 0xF0]), false);
     }
 
     #[test]

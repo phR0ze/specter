@@ -1,31 +1,22 @@
 use std::io::{self, Read};
 
-use super::Kind;
+use super::{Exif, Jfif, Kind};
 use crate::{
     errors::{CastError, MetaError},
-    formats::{self, Jpeg},
+    parsers::jpeg,
 };
 
+/// Meta provides encapsulation for the different metadata types that can be parsed
+/// out of a variety of media types.
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum Meta {
-    Jpeg(Jpeg),
+pub struct Meta {
+    exif: Option<Exif>,
+    // Itpc
+    jfif: Option<Jfif>,
+    // Xmp
+    kind: Kind,
 }
-
-// Notes
-// BufReader is used to read the file in chunks to reduce the number of system calls
-// and improve performance. The default buffer size is 8KB. seeking with BufReader will
-// discard the cache which is inefficient if your looking to reuse the data.
-
-// Vec::with_capacity() will preallocate the memory for the vector to avoid reallocation
-// when the vector grows. The vector is uninitialized and has length 0 but the memory is
-// allocated for use. This is useful when the number of elements is known in advance.
-// Vec will allocate on the heap while arrays are allocated on the stack.
-
-// Another possiblity here is `memmap` which maps the file to memory and allows for the
-// operating system to manage loading the contents into memory as needed transparently.
-// This means though that the data isn't on the heap but rather in the OS buffer cache.
-// https://github.com/getreu/stringsext
 
 impl Meta {
     /// Discover the media type and create a new instance based on that type
@@ -34,8 +25,13 @@ impl Meta {
         reader.by_ref().take(2).read_to_end(&mut header)?;
 
         // Check the header to determine the media type
-        if Jpeg::is_jpeg(&header) {
-            Ok(Self::Jpeg(Jpeg::parse(header.chain(reader))?))
+        if jpeg::is_jpeg(&header) {
+            let (jfif, exif) = jpeg::parse(header.chain(reader))?;
+            Ok(Self {
+                jfif,
+                exif,
+                kind: Kind::Jpeg,
+            })
         } else {
             Err(MetaError::unknown_header(&header))
         }
@@ -43,31 +39,17 @@ impl Meta {
 
     /// Return the kind of media file were working with
     pub fn kind(&self) -> Kind {
-        match self {
-            Self::Jpeg(_) => Kind::Jpeg,
-        }
-    }
-
-    /// Return the concrete jpeg type or an error if the cast fails
-    pub fn as_jpeg(&self) -> Result<&Jpeg, CastError> {
-        match self {
-            Self::Jpeg(jpg) => Ok(jpg),
-            _ => Err(CastError::new(format!(
-                "Jpeg, real type is {}",
-                self.kind()
-            ))),
-        }
+        self.kind
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use formats::JPEG_HEADER;
 
     #[test]
     fn test_meta_parse_header_is_valid_jpeg() {
-        let mut header = io::Cursor::new(JPEG_HEADER);
+        let mut header = io::Cursor::new(jpeg::marker::HEADER);
         let meta = Meta::parse(&mut header).unwrap();
         assert_eq!(meta.kind(), Kind::Jpeg);
     }
