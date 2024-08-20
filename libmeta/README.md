@@ -137,21 +137,61 @@ Extensible Metadata Platform (XMP)
 JPEG's are constructed using `Markers`. Markers are a binary formatted value used to mark a segment 
 of the file for a specific purpose e.g. start of the image data, end of the image data, etc...
 
+JPEG data is all in Big-Endian format except for potentially Exif which can be in Little-Endian but 
+usually not. Start of Scan is immediately followed by the actual image data without any size until it 
+reaches the end of the file marker.
+
 **References**
 * [JFIF Wikipedia](https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format)
 * [Exif MIT](https://www.media.mit.edu/pia/Research/deepview/exif.html)
 * [ExifLibrary for DotNet](https://www.codeproject.com/Articles/43665/ExifLibrary-for-NET)
+* [Markers enumerated](https://techstumbler.blogspot.com/2008/09/jpeg-marker-codes.html)
+* [Decode JPEG in Python](https://practicalpython.yasoob.me/chapter10.html)
 
 | Marker   | Name | Data    | Description
 | -------- | ---- | ------- | -------------
-| `0xFFD8` | SOI  |         | Start of the file
+| `0xFFC0` | SOF  |         | Start of frame
+| `0xFFC4` | DHT  |         | Define Huffman Table, there are usually 4
+| `0xFFD8` | SOI  |         | Start of image file i.e. JPEG header
 | `0xFFDA` | SOS  |         | Start of scan i.e. start of image data
-| `0xFFD9` | EOI  |         | End of image data
+| `0xFFDB` | DQT  |         | Define Quantization Table
+| `0xFFDC` |  ?   |         | Define Number Of Lines
+| `0xFFDD` | DRI  |         | Define Restart Interval
+| `0xFFDE` |  ?   |         | HierarchProgressionDef
+| `0xFFDF` |  ?   |         | ExpandRefComponents
+| `0xFFD9` | EOI  |         | End of image file i.e. JPEG footer
 | `0xFFE0` | APP0 | "JFIF"  | JFIF marker segment
 | `0xFFE1` | APP1 | "Exif"  | Exif marker segment
 | `0xFFE2` | APP2 | "CIFF"  | Canon Camera Image File Format
-| `0xFFE8` | APP8 | "SPIFF" | Still Picture Interchange File Format
 | `?`      | ?    | "CIPA"  | Mutli Picture Object specification
+| `0xFFE3` | APP3 |         | ?
+| `0xFFE4` | APP4 |         | ?
+| `0xFFE5` | APP5 |         | ?
+| `0xFFE6` | APP6 |         | ?
+| `0xFFE7` | APP7 |         | ?
+| `0xFFE8` | APP8 | "SPIFF" | Still Picture Interchange File Format
+| `0xFFE9` | APP9 |         | ?
+| `0xFFEA` | APPA |         | ?
+| `0xFFEB` | APPB |         | ?
+| `0xFFEC` | APPC |         | ?
+| `0xFFED` | APPD |         | ?
+| `0xFFEE` | APPE |         | ?
+| `0xFFEF` | APPF |         | ?
+| `0xFFF0` | EXT0 |         | Extensions
+| `0xFFF1` | EXT1 |         | Extensions
+| `0xFFF2` | EXT2 |         | Extensions
+| `0xFFF3` | EXT3 |         | Extensions
+| `0xFFF4` | EXT4 |         | Extensions
+| `0xFFF5` | EXT5 |         | Extensions
+| `0xFFF6` | EXT6 |         | Extensions
+| `0xFFF7` | EXT7 |         | Extensions
+| `0xFFF8` | EXT8 |         | Extensions
+| `0xFFF9` | EXT9 |         | Extensions
+| `0xFFFA` | EXTA |         | Extensions
+| `0xFFFB` | EXTB |         | Extensions
+| `0xFFFC` | EXTC |         | Extensions
+| `0xFFFD` | EXTD |         | Extensions
+| `0xFFFE` | EXTE |         | Comment
 
 
 Marker format `0xFF` (1 byte) + Marker Number (1 byte) + Data size (2 bytes) + Data (n bytes).
@@ -166,6 +206,51 @@ specifying the length of the data following including the 2 bytes for the data s
 
 Markers `0xFFE0` through `0xFFEF` are called application markers and are not necessary for decoding 
 the image. They are used by cameras and applications to store metadata about the image.
+
+### Start of Frame
+The start of frame contains image data properties
+
+| Field               | Size | Description 
+| ------------------- | ---- | -------------------------
+| Marker Identifier   | 2    | 0xff, 0xc0 to identify SOF0 marker
+| Length              | 2    | This value equals to 8 + components`*`3 value
+| Data precision      | 1    | This is in bits/sample, usually 8 (12 and 16 not supported by most software).
+| Image height        | 2    | This must be > 0
+| Image Width         | 2    | This must be > 0
+| Number of components | 1   | Usually 1 = grey scaled, 3 = color YcbCr or YIQ
+| Each component      | 3    | Read each component data of 3 bytes. It contains, (component Id(1byte)(1 = Y, 2 = Cb, 3 = Cr, 4 = I, 5 = Q), sampling factors (1byte) (bit 0-3 vertical., 4-7 horizontal.), quantization table number (1 byte)).
+
+### Restart Interval
+
+
+### Quantinization Table
+The Define Quantinization Table contains the following data
+
+| Field               | Size | Description 
+| ------------------- | ---- | -------------------------
+| Marker Identifier   | 2    | 0xff, 0xdb identifies DQT
+| Length              | 2    | This gives the length of QT.
+| QT information      | 1    | bit 0..3: number of QT (0..3, otherwise error) bit 4..7: the precision of QT, 0 = 8 bit, otherwise 16 bit
+| Bytes               | n    | This gives QT values, `n = 64*(precision+1)`
+
+### Huffman Tables
+Huffman encoding is a method for lossless compression of information. The `DCT (Discrete Cosine Tranform)`
+is stored in up to 4 Huffman tables in a JPEG. These "Define Huffman Table" sections.
+
+**References**
+* [Tom Scott Huffman Coding](https://www.youtube.com/watch?v=JsTptu56GM8)
+* [Python Huffman explanation](https://practicalpython.yasoob.me/chapter10.html#huffman-encoding)
+
+| Field               | Size | Description 
+| ------------------- | ---- | -------------------------
+| Marker Identifier   | 2    | 0xff, 0xc4 to identify DHT marker
+| Length              | 2    | This specifies the length of Huffman table
+| HT information      | 1    | 
+| Number of Symbols   | 16   | sum(n) of these bytes is the total number of codes, which must be <= 256
+| Symbols             | n    | Table containing the symbols in order of increasing code length ( n = total number of codes ).
+
+**HT information**
+* bit 0..3: number of HT (0..3, otherwise error) bit 4: type of HT, 0 = DC table, 1 = AC table bit 5..7: not used, must be 0
 
 ### JFIF
 [JPEG File Interchange Format](https://www.loc.gov/preservation/digital/formats/fdd/fdd000018.shtml) 
