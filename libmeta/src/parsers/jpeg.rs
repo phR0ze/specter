@@ -24,12 +24,12 @@ pub(crate) mod marker {
 // JPEG segments are defined by an identifier, their length and the data they contain
 #[derive(Debug, PartialEq)]
 struct Segment {
-    marker: [u8; 2], // JPEG segment identifier
-    length: u16,     // JPEG segment length
-    data: Vec<u8>,   // JPEG segment data
+    marker: [u8; 2],       // JPEG segment identifier
+    length: u16,           // JPEG segment length
+    data: Option<Vec<u8>>, // JPEG segment data
 }
 impl Segment {
-    fn new(marker: [u8; 2], length: u16, data: Vec<u8>) -> Self {
+    fn new(marker: [u8; 2], length: u16, data: Option<Vec<u8>>) -> Self {
         Self {
             marker,
             length,
@@ -75,12 +75,15 @@ pub fn parse(mut reader: impl io::BufRead) -> Result<(Option<Jfif>, Option<Exif>
         match parse_segment(&buf) {
             Ok((remain, segment)) => match segment.marker {
                 marker::APP0 => {
-                    jfif = Some(Jfif::parse(&segment.data)?);
+                    jfif = Some(Jfif::parse(&segment.data.unwrap())?);
                 }
                 marker::APP1 => {
-                    exif = Some(Exif::parse(&segment.data)?);
+                    exif = Some(Exif::parse(&segment.data.unwrap())?);
                 }
-                // check for last segment?
+                marker::SOS => {
+                    // last segment before image data so break out
+                    break;
+                }
                 _ => {
                     return Err(JpegError::segment_marker_unknown(remain));
                 }
@@ -134,11 +137,18 @@ fn parse_segment(input: &[u8]) -> Result<(&[u8], Segment), JpegError> {
 
     // Match marker and parse the corresponding segment type
     match marker {
-        marker::APP0 | marker::APP1 => {
+        // Parse segments with data
+        marker::APP0 | marker::APP1 | marker::APP2 => {
             let (remain, length) = parse_length(remain)?;
             let (remain, data) = parse_data(remain, length)?;
-            Ok((remain, Segment::new(marker, length, data)))
+            Ok((remain, Segment::new(marker, length, Some(data))))
         }
+
+        // Parse segments with no data.
+        // SOS actually has data but we don't care about the image data for metadata parsing
+        marker::SOS => Ok((remain, Segment::new(marker, 0, None))),
+
+        // Unknown segment
         _ => Err(JpegError::segment_marker_unknown(&marker)),
     }
 }
@@ -221,17 +231,18 @@ mod tests {
         let (_, segment) = parse_segment(&JPEG_DATA_1[20..]).unwrap();
         assert_eq!(segment.marker, marker::APP1);
         assert_eq!(segment.length, 860);
-        assert_eq!(segment.data.len(), 860);
+        assert_eq!(segment.data.unwrap().len(), 860);
     }
 
     #[test]
     fn test_parse_segment_jfif_success() {
         let (remain, segment) = parse_segment(&JFIF_DATA_1).unwrap();
         assert_eq!(segment.marker, marker::APP0);
-        assert_eq!(segment.data, &JFIF_DATA_1[4..]);
+        let data = segment.data.unwrap();
+        assert_eq!(data, &JFIF_DATA_1[4..]);
         assert_eq!(remain, &[]);
         assert_eq!(
-            std::str::from_utf8(&segment.data).unwrap(),
+            std::str::from_utf8(&data).unwrap(),
             "JFIF\0\u{1}\u{2}\u{1}\0H\0H\0\0"
         );
     }

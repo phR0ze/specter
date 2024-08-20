@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     fn test_meta_parse_header_is_valid_jpeg() {
-        let mut header = io::Cursor::new(jpeg::marker::HEADER);
+        let mut header = io::Cursor::new([jpeg::marker::HEADER, jpeg::marker::SOS].concat());
         let meta = Meta::parse(&mut header).unwrap();
         assert_eq!(meta.kind(), Kind::Jpeg);
     }

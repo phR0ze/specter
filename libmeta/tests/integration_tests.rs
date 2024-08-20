@@ -16,7 +16,7 @@ fn test_jpeg() {
 
 #[test]
 fn test_meta_parse_header_is_valid() {
-    let mut header = io::Cursor::new(&[0xFF, 0xD8]);
+    let mut header = io::Cursor::new(&[0xFF, 0xD8, 0xFF, 0xDA]);
     let meta = libmeta::parse(&mut header);
     assert!(meta.is_ok());
     assert!(meta.unwrap().kind() == Kind::Jpeg);

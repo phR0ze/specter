@@ -5,7 +5,7 @@ const chunk_len: usize = 10; // Use 4096 bytes or 4KB buffer in production
 /// Stream bytes from the media source.
 /// Data accumulates until acked by the caller.
 pub struct Stream<'a> {
-    buffer: Vec<u8>,
+    buffer: Vec<u8>, // Vec<T> is similar to Box<[T]> i.e. owned pointer to heap
     reader: &'a mut dyn io::BufRead,
 }
 
@@ -48,14 +48,15 @@ impl<'a> Iterator for Stream<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         // let mut buf = [0u8; chunk_len];
         // match self.read_at_most(&mut buf) {
-        //     Ok(0) => None,
+        //     Ok(0) => (),
         //     Ok(n) => {
         //         self.buffer.extend_from_slice(&buf[..n]);
-        //         Some(Ok(&self.buffer))
+        //         ()
         //     }
-        //     Err(e) => Some(Err(e)),
+        //     Err(e) => return Some(Err(e)),
         // }
-        // self.buffer.extend_from_slice(&buf);
+        // //Some(Ok(self.buffer.as_ref()))
+        // Some(Ok(&self.buffer[..]))
         None
     }
 }
