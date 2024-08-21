@@ -51,14 +51,14 @@ impl Exif {
             nom::number::streaming::le_u16(remain)
                 .map_err(|x| ExifError::length_invalid().with_nom_source(x))?
         };
-        println!("length: {}", length);
-        return Err(ExifError::offset_failed());
+        // println!("length: {}", length);
+        // return Err(ExifError::offset_failed());
 
-        // Drop the TIFF offset to get to the first IFD
-        // 00000008 ?
-        let (remain, val) = nom::bytes::streaming::take(4usize)(remain)
-            .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
-        //return Err(ExifError::offset_failed().with_data(val));
+        // // Drop the TIFF offset to get to the first IFD
+        // // 00000008 ?
+        // let (remain, val) = nom::bytes::streaming::take(4usize)(remain)
+        //     .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
+        // //return Err(ExifError::offset_failed().with_data(val));
 
         // // Parse IFD 1's file number
         // let (remain, length) = if exif.is_big_endian() {
