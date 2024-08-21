@@ -5,9 +5,9 @@ use super::{BaseError, ContextError};
 #[derive(Debug)]
 #[non_exhaustive] // allow for future error fields
 pub struct ExifError {
-    pub kind: ExifErrorKind,      // extensible kind messaging
-    data: Option<ExifDataKind>,   // additional error data
-    source: Option<ContextError>, // optional extensible source error
+    pub kind: ExifErrorKind,         // extensible kind messaging
+    data: Option<ExifErrorDataKind>, // additional error data
+    source: Option<ContextError>,    // optional extensible source error
 }
 
 impl ExifError {
@@ -43,15 +43,27 @@ impl ExifError {
         ExifError::new(ExifErrorKind::EntryHeaderFailed)
     }
 
+    pub fn ifd_header_tag_failed() -> Self {
+        ExifError::new(ExifErrorKind::IfdHeaderTagFailed)
+    }
+
+    pub fn ifd_header_data_format_failed() -> Self {
+        ExifError::new(ExifErrorKind::IfdHeaderDataFormatFailed)
+    }
+
+    pub fn ifd_header_component_count_failed() -> Self {
+        ExifError::new(ExifErrorKind::IfdHeaderComponentCountFailed)
+    }
+
     // Add additional error data for output with the error message
     pub fn with_str<T: fmt::Display>(mut self, str: T) -> Self {
-        self.data = Some(ExifDataKind::String(str.to_string()));
+        self.data = Some(ExifErrorDataKind::String(str.to_string()));
         self
     }
 
     // Add additional error data for output with the error message
     pub fn with_data(mut self, data: &[u8]) -> Self {
-        self.data = Some(ExifDataKind::Bytes(data.into()));
+        self.data = Some(ExifErrorDataKind::Bytes(data.into()));
         self
     }
 
@@ -84,12 +96,19 @@ impl fmt::Display for ExifError {
             ExifErrorKind::CountInvalid => write!(f, "Exif IFD entries count invalid")?,
             ExifErrorKind::OffsetFailed => write!(f, "Exif IFD offset failed")?,
             ExifErrorKind::EntryHeaderFailed => write!(f, "Exif IFD entry header failed")?,
+            ExifErrorKind::IfdHeaderTagFailed => write!(f, "Exif IFD header tag failed")?,
+            ExifErrorKind::IfdHeaderDataFormatFailed => {
+                write!(f, "Exif IFD header data format failed")?
+            }
+            ExifErrorKind::IfdHeaderComponentCountFailed => {
+                write!(f, "Exif IFD header component count failed")?
+            }
         };
 
         // Display additional error data if available
-        if let Some(ExifDataKind::String(str)) = &self.data {
+        if let Some(ExifErrorDataKind::String(str)) = &self.data {
             write!(f, ": {}", str)?;
-        } else if let Some(ExifDataKind::Bytes(data)) = &self.data {
+        } else if let Some(ExifErrorDataKind::Bytes(data)) = &self.data {
             write!(f, ": {:02x?}", data)?;
         };
         Ok(())
@@ -113,7 +132,7 @@ impl AsRef<dyn Error> for ExifError {
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum ExifDataKind {
+pub enum ExifErrorDataKind {
     String(String),
     Bytes(Box<[u8]>),
 }
@@ -127,6 +146,9 @@ pub enum ExifErrorKind {
     CountInvalid,
     OffsetFailed,
     EntryHeaderFailed,
+    IfdHeaderTagFailed,
+    IfdHeaderDataFormatFailed,
+    IfdHeaderComponentCountFailed,
 }
 
 #[cfg(test)]
