@@ -1,6 +1,6 @@
 use std::{error::Error, fmt};
 
-use super::ContextError;
+use super::{BaseError, ContextError};
 
 #[derive(Debug)]
 #[non_exhaustive] // allow for future error fields
@@ -66,6 +66,8 @@ impl JfifError {
         self
     }
 }
+
+impl BaseError for JfifError {}
 
 impl fmt::Display for JfifError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -6,7 +6,9 @@ use std::io::{self, prelude::*};
 
 use crate::{
     errors::{CastError, JpegError, JpegErrorKind, MetaError},
-    Exif, Jfif, Kind, Meta,
+    exif::{self, Exif},
+    jfif::{self, Jfif},
+    Kind, Meta,
 };
 
 // JPEG Markers
@@ -85,12 +87,12 @@ pub fn parse(mut reader: impl io::BufRead) -> Result<(Option<Jfif>, Option<Exif>
             match parse_segment(&buffer[i..i + j]) {
                 Ok((remain, segment)) => match segment.marker {
                     marker::APP0 => {
-                        jfif = Some(Jfif::parse(&segment.data.unwrap())?);
+                        jfif = Some(jfif::parse(&segment.data.unwrap())?);
                         i += j - remain.len();
                         j = remain.len();
                     }
                     marker::APP1 => {
-                        exif = Some(Exif::parse(&segment.data.unwrap())?);
+                        exif = Some(exif::parse(&segment.data.unwrap())?);
                         i += j - remain.len();
                         j = remain.len();
                     }

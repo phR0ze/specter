@@ -1,9 +1,4 @@
-use std::{
-    error::Error,
-    fmt::{self, Display},
-};
-
-use crate::Exif;
+use std::{error::Error, fmt};
 
 use super::{BaseError, ContextError};
 
@@ -84,9 +79,9 @@ impl fmt::Display for ExifError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
             ExifErrorKind::IdentifierInvalid => write!(f, "Exif identifier invalid")?,
-            ExifErrorKind::AlignmentInvalid => write!(f, "Exif alignment invalid")?,
+            ExifErrorKind::AlignmentInvalid => write!(f, "Exif TIFF alignment invalid")?,
             ExifErrorKind::MarkerInvalid => write!(f, "Exif IFD marker invalid")?,
-            ExifErrorKind::CountInvalid => write!(f, "Exif IFD count invalid")?,
+            ExifErrorKind::CountInvalid => write!(f, "Exif IFD entries count invalid")?,
             ExifErrorKind::OffsetFailed => write!(f, "Exif IFD offset failed")?,
             ExifErrorKind::EntryHeaderFailed => write!(f, "Exif IFD entry header failed")?,
         };

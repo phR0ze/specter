@@ -1,6 +1,6 @@
 use std::io::{self, Read};
 
-use super::{Exif, Jfif, Kind};
+use super::{exif::Exif, jfif::Jfif, Kind};
 use crate::{
     errors::{CastError, MetaError},
     formats::jpeg,
