@@ -309,6 +309,13 @@ manufacturers to develop non-standard ways to store large preview images in the 
 | `XXXX...`               | ?  | Data area of IFD1
 | `FFD8 XXXX...XXXX FFD9` | ?  | Thumbnail image
 
+* 8 bytes of TIFF header
+  * 2 bytes of byte alignment
+    * `0x4949` => `II` Intel a.k.a. Little-Endian
+    * `0x4D4D` => `MM` Motorola a.k.a. Big-Endian 
+  * 2 bytes of length formatted according to byte alignment
+  * 4 bytes of offset to get to the first IFD (Image File Directory)
+
 ### TIFF
 When Exif is embedded in a TIFF, the exif data is stored in a TIFF sub-image file directory (sub-IFD) 
 using the tag `0x8769` or the global sub-IFD defined by the tag `0x8825` or the Interoperability IFD 

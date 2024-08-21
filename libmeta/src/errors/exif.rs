@@ -23,24 +23,16 @@ impl ExifError {
         ExifError::new(ExifErrorKind::IdentifierInvalid)
     }
 
-    pub fn version_invalid() -> Self {
-        ExifError::new(ExifErrorKind::VersionInvalid)
+    pub fn alignment_invalid() -> Self {
+        ExifError::new(ExifErrorKind::AlignmentInvalid)
     }
 
-    pub fn density_units_invalid() -> Self {
-        ExifError::new(ExifErrorKind::DensityUnitsInvalid)
+    pub fn length_invalid() -> Self {
+        ExifError::new(ExifErrorKind::LengthInvalid)
     }
 
-    pub fn density_units_unknown() -> Self {
-        ExifError::new(ExifErrorKind::DensityUnitsUnknown)
-    }
-
-    pub fn thumbnail_invalid() -> Self {
-        ExifError::new(ExifErrorKind::ThumbnailInvalid)
-    }
-
-    pub fn thumbnail_dimensions_invalid() -> Self {
-        ExifError::new(ExifErrorKind::ThumbnailDimensionsInvalid)
+    pub fn offset_failed() -> Self {
+        ExifError::new(ExifErrorKind::OffsetFailed)
     }
 
     // Add additional error data for output with the error message
@@ -71,13 +63,9 @@ impl fmt::Display for ExifError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
             ExifErrorKind::IdentifierInvalid => write!(f, "Exif identifier invalid")?,
-            ExifErrorKind::VersionInvalid => write!(f, "Exif version invalid")?,
-            ExifErrorKind::DensityUnitsInvalid => write!(f, "Exif density units invalid")?,
-            ExifErrorKind::DensityUnitsUnknown => write!(f, "Exif density units unknown")?,
-            ExifErrorKind::ThumbnailInvalid => write!(f, "Exif thumbnail invalid")?,
-            ExifErrorKind::ThumbnailDimensionsInvalid => {
-                write!(f, "Exif thumbnail dimensions invalid")?
-            }
+            ExifErrorKind::AlignmentInvalid => write!(f, "Exif alignment invalid")?,
+            ExifErrorKind::LengthInvalid => write!(f, "Exif length invalid")?,
+            ExifErrorKind::OffsetFailed => write!(f, "Exif ifd offset failed")?,
         };
 
         // Display additional error data if available
@@ -107,11 +95,9 @@ impl AsRef<dyn Error> for ExifError {
 #[non_exhaustive]
 pub enum ExifErrorKind {
     IdentifierInvalid,
-    VersionInvalid,
-    DensityUnitsInvalid,
-    DensityUnitsUnknown,
-    ThumbnailInvalid,
-    ThumbnailDimensionsInvalid,
+    AlignmentInvalid,
+    LengthInvalid,
+    OffsetFailed,
 }
 
 #[cfg(test)]

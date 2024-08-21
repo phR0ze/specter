@@ -234,6 +234,8 @@ mod tests {
     #[test]
     fn test_parse_all_segments() {
         let mut data = io::Cursor::new(JPEG_DATA_1);
+        //let err = parse(&mut data).unwrap_err();
+        //assert_eq!(err_to_string(&err), "");
         let (jfif, exif) = parse(&mut data).unwrap();
 
         // Validate JFIF
@@ -247,6 +249,8 @@ mod tests {
         assert_eq!(jfif.y_thumbnail, 0);
 
         // Exif
+        let exif = exif.unwrap();
+        assert_eq!(exif.is_big_endian(), true);
         //let exif = exif.unwrap();
 
         //assert_eq!(err_to_string(&err), "");
