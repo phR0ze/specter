@@ -1,6 +1,6 @@
 use std::{error::Error, fmt, io};
 
-use super::ContextError;
+use super::{ContextError, ExifError, JfifError};
 
 #[derive(Debug)]
 #[non_exhaustive] // allow for future error fields
@@ -35,48 +35,24 @@ impl JpegError {
         JpegError::new(JpegErrorKind::ReadFailed)
     }
 
-    pub fn jfif_identifier_invalid() -> Self {
-        JpegError::new(JpegErrorKind::JfifIdentifierInvalid)
-    }
-
-    pub fn jfif_version_invalid() -> Self {
-        JpegError::new(JpegErrorKind::JfifVersionInvalid)
-    }
-
-    pub fn jfif_density_units_invalid() -> Self {
-        JpegError::new(JpegErrorKind::JfifDensityUnitsInvalid)
-    }
-
-    pub fn jfif_density_units_unknown() -> Self {
-        JpegError::new(JpegErrorKind::JfifDensityUnitsUnknown)
-    }
-
-    pub fn jfif_thumbnail_invalid() -> Self {
-        JpegError::new(JpegErrorKind::JfifThumbnailInvalid)
-    }
-
-    pub fn jfif_thumbnail_dimensions_invalid() -> Self {
-        JpegError::new(JpegErrorKind::JfifThumbnailDimensionsInvalid)
-    }
-
     pub fn segment_invalid() -> Self {
-        JpegError::new(JpegErrorKind::JpegSegmentInvalid)
+        JpegError::new(JpegErrorKind::SegmentInvalid)
     }
 
     pub fn segment_marker_invalid() -> Self {
-        JpegError::new(JpegErrorKind::JpegSegmentMarkerInvalid)
+        JpegError::new(JpegErrorKind::SegmentMarkerInvalid)
     }
 
     pub fn segment_length_invalid() -> Self {
-        JpegError::new(JpegErrorKind::JpegSegmentLengthInvalid)
+        JpegError::new(JpegErrorKind::SegmentLengthInvalid)
     }
 
     pub fn segment_data_invalid() -> Self {
-        JpegError::new(JpegErrorKind::JpegSegmentDataInvalid)
+        JpegError::new(JpegErrorKind::SegmentDataInvalid)
     }
 
     pub fn segment_marker_unknown(marker: &[u8]) -> Self {
-        JpegError::new(JpegErrorKind::JpegSegmentMarkerUnknown).with_data(marker)
+        JpegError::new(JpegErrorKind::SegmentMarkerUnknown).with_data(marker)
     }
 
     // Add additional error data for output with the error message
@@ -122,19 +98,11 @@ impl fmt::Display for JpegError {
             JpegErrorKind::HeaderInvalid => write!(f, "JPEG header is invalid")?,
             JpegErrorKind::NotEnoughData => write!(f, "JPEG not enough data")?,
             JpegErrorKind::ReadFailed => write!(f, "JPEG read failed")?,
-            JpegErrorKind::JfifIdentifierInvalid => write!(f, "JFIF identifier invalid")?,
-            JpegErrorKind::JfifVersionInvalid => write!(f, "JFIF version invalid")?,
-            JpegErrorKind::JfifDensityUnitsInvalid => write!(f, "JFIF density units invalid")?,
-            JpegErrorKind::JfifDensityUnitsUnknown => write!(f, "JFIF density units unknown")?,
-            JpegErrorKind::JfifThumbnailInvalid => write!(f, "JFIF thumbnail invalid")?,
-            JpegErrorKind::JfifThumbnailDimensionsInvalid => {
-                write!(f, "JFIF thumbnail dimensions invalid")?
-            }
-            JpegErrorKind::JpegSegmentInvalid => write!(f, "JPEG segment invalid")?,
-            JpegErrorKind::JpegSegmentMarkerInvalid => write!(f, "JPEG segment marker invalid")?,
-            JpegErrorKind::JpegSegmentMarkerUnknown => write!(f, "JPEG segment marker unknown")?,
-            JpegErrorKind::JpegSegmentLengthInvalid => write!(f, "JPEG segment length invalid")?,
-            JpegErrorKind::JpegSegmentDataInvalid => write!(f, "JPEG segment data invalid")?,
+            JpegErrorKind::SegmentInvalid => write!(f, "JPEG segment invalid")?,
+            JpegErrorKind::SegmentMarkerInvalid => write!(f, "JPEG segment marker invalid")?,
+            JpegErrorKind::SegmentMarkerUnknown => write!(f, "JPEG segment marker unknown")?,
+            JpegErrorKind::SegmentLengthInvalid => write!(f, "JPEG segment length invalid")?,
+            JpegErrorKind::SegmentDataInvalid => write!(f, "JPEG segment data invalid")?,
         };
 
         // Display additional error data if available
@@ -160,6 +128,18 @@ impl AsRef<dyn Error> for JpegError {
     }
 }
 
+impl From<JfifError> for JpegError {
+    fn from(e: JfifError) -> Self {
+        JpegError::failed().wrap(e)
+    }
+}
+
+impl From<ExifError> for JpegError {
+    fn from(e: ExifError) -> Self {
+        JpegError::failed().wrap(e)
+    }
+}
+
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum JpegErrorKind {
@@ -167,17 +147,11 @@ pub enum JpegErrorKind {
     HeaderInvalid,
     NotEnoughData,
     ReadFailed,
-    JfifIdentifierInvalid,
-    JfifVersionInvalid,
-    JfifDensityUnitsInvalid,
-    JfifDensityUnitsUnknown,
-    JfifThumbnailInvalid,
-    JfifThumbnailDimensionsInvalid,
-    JpegSegmentInvalid,
-    JpegSegmentMarkerInvalid,
-    JpegSegmentMarkerUnknown,
-    JpegSegmentLengthInvalid,
-    JpegSegmentDataInvalid,
+    SegmentInvalid,
+    SegmentMarkerInvalid,
+    SegmentMarkerUnknown,
+    SegmentLengthInvalid,
+    SegmentDataInvalid,
 }
 
 #[cfg(test)]

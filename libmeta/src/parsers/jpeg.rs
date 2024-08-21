@@ -15,9 +15,10 @@ pub(crate) mod marker {
     pub(crate) const HEADER: [u8; 2] = [0xFF, 0xD8]; // Start of any JPEG file
     pub(crate) const SOF: [u8; 2] = [0xFF, 0xC0]; // Start of frame
     pub(crate) const DHT: [u8; 2] = [0xFF, 0xC4]; // Define Huffman Table
+    pub(crate) const EOI: [u8; 2] = [0xFF, 0xD9]; // End of image data
     pub(crate) const SOS: [u8; 2] = [0xFF, 0xDA]; // Start of scan i.e. start of image data
     pub(crate) const DQT: [u8; 2] = [0xFF, 0xDB]; // Define Quantinization Table
-    pub(crate) const EOI: [u8; 2] = [0xFF, 0xD9]; // End of image data
+    pub(crate) const DRI: [u8; 2] = [0xFF, 0xDD]; // Define restart interval
     pub(crate) const APP0: [u8; 2] = [0xFF, 0xE0]; // JFIF marker segment
     pub(crate) const APP1: [u8; 2] = [0xFF, 0xE1]; // Exif marker segment
     pub(crate) const APP2: [u8; 2] = [0xFF, 0xE2]; // CIFF Canon Camera Image File Format
@@ -93,7 +94,7 @@ pub fn parse(mut reader: impl io::BufRead) -> Result<(Option<Jfif>, Option<Exif>
                         i += j - remain.len();
                         j = remain.len();
                     }
-                    marker::DQT | marker::SOF | marker::DHT => {
+                    marker::DQT | marker::SOF | marker::DHT | marker::DRI => {
                         // Not sure what these are for yet
                         i += j - remain.len();
                         j = remain.len();
@@ -161,7 +162,7 @@ fn parse_segment(input: &[u8]) -> Result<(&[u8], Segment), JpegError> {
     // Match marker and parse the corresponding segment type
     match marker {
         // Parse segments with data
-        marker::APP0 | marker::APP1 | marker::DQT | marker::SOF | marker::DHT => {
+        marker::APP0 | marker::APP1 | marker::DQT | marker::SOF | marker::DHT | marker::DRI => {
             let (remain, length) = parse_length(remain)?;
             let (remain, data) = parse_data(remain, length)?;
             Ok((remain, Segment::new(marker, length, Some(data))))
@@ -210,7 +211,7 @@ fn parse_data(input: &[u8], length: u16) -> Result<(&[u8], Vec<u8>), JpegError> 
 
 #[cfg(test)]
 mod tests {
-    use crate::parsers::jpeg;
+    use crate::{parsers::jpeg, DensityUnit};
 
     use super::*;
 
@@ -233,12 +234,22 @@ mod tests {
     #[test]
     fn test_parse_all_segments() {
         let mut data = io::Cursor::new(JPEG_DATA_1);
-        let err = parse(&mut data).unwrap_err();
-        //assert_eq!(err.to_string(), JpegError::not_enough_data().to_string());
-        assert_eq!(
-            err_to_string(&err),
-            JpegError::not_enough_data().to_string()
-        );
+        let (jfif, exif) = parse(&mut data).unwrap();
+
+        // Validate JFIF
+        let jfif = jfif.unwrap();
+        assert_eq!(jfif.major, 1);
+        assert_eq!(jfif.minor, 1);
+        assert_eq!(jfif.density, DensityUnit::PixelsPerInch);
+        assert_eq!(jfif.x_density, 72);
+        assert_eq!(jfif.y_density, 72);
+        assert_eq!(jfif.x_thumbnail, 0);
+        assert_eq!(jfif.y_thumbnail, 0);
+
+        // Exif
+        //let exif = exif.unwrap();
+
+        //assert_eq!(err_to_string(&err), "");
     }
 
     #[test]

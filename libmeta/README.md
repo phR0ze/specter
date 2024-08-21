@@ -150,15 +150,21 @@ reaches the end of the file marker.
 
 | Marker   | Name | Data    | Description
 | -------- | ---- | ------- | -------------
-| `0xFFC0` | SOF  |         | Start of frame
-| `0xFFC4` | DHT  |         | Define Huffman Table, there are usually 4
 | `0xFFD8` | SOI  |         | Start of image file i.e. JPEG header
+| `0xFFC0` | SOF0 |         | Start of frame (Baseline DCT)
+| `0xFFC2` | SOF2 |         | Start of frame (Progressive DCT)
+| `0xFFC3` | SOF3 |         | Start of frame (Lossless sequential)
+| `0xFFC4` | DHT  |         | Define Huffman Table, there are usually 4
+| `0xFFC5` | SOF5 |         | Start of frame (Differential squeential DCT)
+| `0xFFC6` | SOF6 |         | Start of frame (Differential progressive DCT)
+| `0xFFC7` | SOF7 |         | Start of frame (Differential lossless DCT)
+| `0xFFD0` | RST  |         | Restart `0xFFD0 - 0xFFD7`
 | `0xFFDA` | SOS  |         | Start of scan i.e. start of image data
 | `0xFFDB` | DQT  |         | Define Quantization Table
-| `0xFFDC` |  ?   |         | Define Number Of Lines
+| `0xFFDC` | DNL  |         | Define Number of Lines
 | `0xFFDD` | DRI  |         | Define Restart Interval
-| `0xFFDE` |  ?   |         | HierarchProgressionDef
-| `0xFFDF` |  ?   |         | ExpandRefComponents
+| `0xFFDE` | DHP  |         | Define Hierarchical Progression
+| `0xFFDF` | EXP  |         | Expand References Components
 | `0xFFD9` | EOI  |         | End of image file i.e. JPEG footer
 | `0xFFE0` | APP0 | "JFIF"  | JFIF marker segment
 | `0xFFE1` | APP1 | "Exif"  | Exif marker segment
@@ -191,7 +197,7 @@ reaches the end of the file marker.
 | `0xFFFB` | EXTB |         | Extensions
 | `0xFFFC` | EXTC |         | Extensions
 | `0xFFFD` | EXTD |         | Extensions
-| `0xFFFE` | EXTE |         | Comment
+| `0xFFFE` | COM  |         | Comment
 
 
 Marker format `0xFF` (1 byte) + Marker Number (1 byte) + Data size (2 bytes) + Data (n bytes).
@@ -292,13 +298,13 @@ exif data should reside in the APP1 segment although the `FlashPix` extensions a
 span `APP1` and `APP2` segments however this is not commonly used. This has led some camera 
 manufacturers to develop non-standard ways to store large preview images in the image.
 
-| Example                 | #  | Description
-| ----------------------- | -- | ------------------------------------------
-| `FFD8`                  | 2  | JPEG marker indicates this file is a JPEG image
-| `FFE1`                  | 2  | APP1 marker indicates this file contains EXIF metadata
-| `XXXX`                  | 2  | APP1 data size, in Big Endian, including the 2 size bytes so subtract 2
-| `4578 6966 0000`        | 6  | Exif header i.e. `Exif` and 2 bytes of `0x00`
-| `4949 2A00 0800 0000`   | 8  | Tiff header, 2 bytes of align `0x4949` is Little-Endian, `0x4D4D` is Big-Endian
+| Field                   | Size | Description
+| ----------------------- | ---- | ------------------------------------------
+| `FFD8`                  | 2    | JPEG marker indicates this file is a JPEG image
+| `FFE1`                  | 2    | APP1 marker indicates this file contains EXIF metadata
+| `XXXX`                  | 2    | APP1 data size, in Big Endian, including the 2 size bytes so subtract 2
+| `4578 6966 0000`        | 6    | Exif header i.e. `Exif` and 2 bytes of `0x00`
+| `4949 2A00 0800 0000`   | 8    | Tiff header, 2 bytes of align `0x4949` is Little-Endian, `0x4D4D` is Big-Endian
 
 | `XXXX...`               | ?  | Data area of IFD1
 | `FFD8 XXXX...XXXX FFD9` | ?  | Thumbnail image
