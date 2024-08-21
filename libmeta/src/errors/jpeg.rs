@@ -1,6 +1,6 @@
 use std::{error::Error, fmt, io};
 
-use super::{ContextError, ExifError, JfifError};
+use super::{BaseError, ContextError, ExifError, JfifError};
 
 #[derive(Debug)]
 #[non_exhaustive] // allow for future error fields
@@ -11,6 +11,7 @@ pub struct JpegError {
 }
 
 impl JpegError {
+    /// Create a new error with a specific kind
     pub fn new(kind: JpegErrorKind) -> Self {
         Self {
             data: Box::new([]),
@@ -19,54 +20,63 @@ impl JpegError {
         }
     }
 
+    /// Create a new error for a failed operation
     pub fn failed() -> Self {
         JpegError::new(JpegErrorKind::Failed)
     }
 
+    /// Create a new error for an invalid header
     pub fn header_invalid() -> Self {
         JpegError::new(JpegErrorKind::HeaderInvalid)
     }
 
+    /// Create a new error for not enough data
     pub fn not_enough_data() -> Self {
         JpegError::new(JpegErrorKind::NotEnoughData)
     }
 
+    /// Create a new error for a read failure
     pub fn read_failed() -> Self {
         JpegError::new(JpegErrorKind::ReadFailed)
     }
 
+    /// Create a new error for an invalid segment
     pub fn segment_invalid() -> Self {
         JpegError::new(JpegErrorKind::SegmentInvalid)
     }
 
+    /// Create a new error for an invalid segment marker
     pub fn segment_marker_invalid() -> Self {
         JpegError::new(JpegErrorKind::SegmentMarkerInvalid)
     }
 
+    /// Create a new error for an invalid segment length
     pub fn segment_length_invalid() -> Self {
         JpegError::new(JpegErrorKind::SegmentLengthInvalid)
     }
 
+    /// Create a new error for invalid segment data
     pub fn segment_data_invalid() -> Self {
         JpegError::new(JpegErrorKind::SegmentDataInvalid)
     }
 
+    /// Create a new error for an unknown segment marker
     pub fn segment_marker_unknown(marker: &[u8]) -> Self {
         JpegError::new(JpegErrorKind::SegmentMarkerUnknown).with_data(marker)
     }
 
-    // Add additional error data for output with the error message
+    /// Add additional error data for output with the error message
     pub fn with_data(mut self, data: &[u8]) -> Self {
         self.data = data.into();
         self
     }
 
-    // Add an optional source error
+    /// Add an optional source error
     pub fn with_io_source(self, source: io::Error) -> Self {
         self.with_source("io::Error: ", source)
     }
 
-    // Add a nom source error and override the kind in particular cases
+    /// Add a nom source error and override the kind in particular cases
     pub fn with_nom_source(mut self, source: nom::Err<nom::error::Error<&[u8]>>) -> Self {
         if let nom::Err::Incomplete(_) = source {
             self.kind = JpegErrorKind::NotEnoughData;
@@ -78,13 +88,13 @@ impl JpegError {
         self.with_source("nom::", source)
     }
 
-    // Add an optional source error
+    /// Add an optional source error
     pub fn with_source<T: Error>(mut self, kind: &str, source: T) -> Self {
         self.source = Some(ContextError::from(kind, source));
         self
     }
 
-    // Add an optional source error
+    /// Add an optional source error
     pub fn wrap<T: Error>(mut self, source: T) -> Self {
         self.source = Some(ContextError::from("", source));
         self
@@ -112,6 +122,9 @@ impl fmt::Display for JpegError {
         Ok(())
     }
 }
+
+impl BaseError for JpegError {}
+
 impl Error for JpegError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.source {

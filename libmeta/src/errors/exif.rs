@@ -1,19 +1,24 @@
-use std::{error::Error, fmt};
+use std::{
+    error::Error,
+    fmt::{self, Display},
+};
 
-use super::ContextError;
+use crate::Exif;
+
+use super::{BaseError, ContextError};
 
 #[derive(Debug)]
 #[non_exhaustive] // allow for future error fields
 pub struct ExifError {
     pub kind: ExifErrorKind,      // extensible kind messaging
-    data: Box<[u8]>,              // additional error data
+    data: Option<ExifDataKind>,   // additional error data
     source: Option<ContextError>, // optional extensible source error
 }
 
 impl ExifError {
     pub fn new(kind: ExifErrorKind) -> Self {
         Self {
-            data: Box::new([]),
+            data: None,
             kind,
             source: None,
         }
@@ -27,17 +32,31 @@ impl ExifError {
         ExifError::new(ExifErrorKind::AlignmentInvalid)
     }
 
-    pub fn length_invalid() -> Self {
-        ExifError::new(ExifErrorKind::LengthInvalid)
+    pub fn marker_invalid() -> Self {
+        ExifError::new(ExifErrorKind::MarkerInvalid)
+    }
+
+    pub fn count_invalid() -> Self {
+        ExifError::new(ExifErrorKind::CountInvalid)
     }
 
     pub fn offset_failed() -> Self {
         ExifError::new(ExifErrorKind::OffsetFailed)
     }
 
+    pub fn entry_header_failed() -> Self {
+        ExifError::new(ExifErrorKind::EntryHeaderFailed)
+    }
+
+    // Add additional error data for output with the error message
+    pub fn with_str<T: fmt::Display>(mut self, str: T) -> Self {
+        self.data = Some(ExifDataKind::String(str.to_string()));
+        self
+    }
+
     // Add additional error data for output with the error message
     pub fn with_data(mut self, data: &[u8]) -> Self {
-        self.data = data.into();
+        self.data = Some(ExifDataKind::Bytes(data.into()));
         self
     }
 
@@ -59,18 +78,24 @@ impl ExifError {
     }
 }
 
+impl BaseError for ExifError {}
+
 impl fmt::Display for ExifError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
             ExifErrorKind::IdentifierInvalid => write!(f, "Exif identifier invalid")?,
             ExifErrorKind::AlignmentInvalid => write!(f, "Exif alignment invalid")?,
-            ExifErrorKind::LengthInvalid => write!(f, "Exif length invalid")?,
-            ExifErrorKind::OffsetFailed => write!(f, "Exif ifd offset failed")?,
+            ExifErrorKind::MarkerInvalid => write!(f, "Exif IFD marker invalid")?,
+            ExifErrorKind::CountInvalid => write!(f, "Exif IFD count invalid")?,
+            ExifErrorKind::OffsetFailed => write!(f, "Exif IFD offset failed")?,
+            ExifErrorKind::EntryHeaderFailed => write!(f, "Exif IFD entry header failed")?,
         };
 
         // Display additional error data if available
-        if self.data.len() > 0 {
-            write!(f, " {:02x?}", self.data)?;
+        if let Some(ExifDataKind::String(str)) = &self.data {
+            write!(f, ": {}", str)?;
+        } else if let Some(ExifDataKind::Bytes(data)) = &self.data {
+            write!(f, ": {:02x?}", data)?;
         };
         Ok(())
     }
@@ -93,11 +118,20 @@ impl AsRef<dyn Error> for ExifError {
 
 #[derive(Debug)]
 #[non_exhaustive]
+pub enum ExifDataKind {
+    String(String),
+    Bytes(Box<[u8]>),
+}
+
+#[derive(Debug)]
+#[non_exhaustive]
 pub enum ExifErrorKind {
     IdentifierInvalid,
     AlignmentInvalid,
-    LengthInvalid,
+    MarkerInvalid,
+    CountInvalid,
     OffsetFailed,
+    EntryHeaderFailed,
 }
 
 #[cfg(test)]

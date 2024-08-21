@@ -18,12 +18,12 @@ Specter meta supports a collection of metadata formats from various media files.
   * [Tags](#tags)
     * [Example tags](#example-tags)
     * [Time tags](#time-tags)
+  * [Exif structure](#exif-structure)
 * [XMP](#xmp)
 * [GIF](#gif)
 * [JPEG](#jpeg)
   * [Marker size component](#marker-size-component)
   * [JFIF](#jfif)
-  * [JPEG EXIF](#jpeg-exif)
 * [TIFF](#tiff)
  
 ## Overview
@@ -122,6 +122,34 @@ The Exif tag structure is borrowed from the TIFF format.
 | Interoperability version  | (null) 
 
 #### Time Tags
+
+### Exif Structure
+| Field                   | Size | Description
+| ----------------------- | ---- | ------------------------------------------
+| `4578 6966 0000`        | 6    | Exif header i.e. `Exif` and 2 bytes of `0x00`
+| `4949 2A00 0800 0000`   | 8    | Tiff header, 2 bytes of align `0x4949` is Little-Endian, `0x4D4D` is Big-Endian
+
+#### TIFF header
+
+| Field         | Size | Description
+| ------------- | ---- | ------------------------------------------
+| `4949`        | 2    | Alignment of `4949` i.e. `II` or Intel is Little-Endian, `4D4D` i.e. `MM` or Motorola is Big-Endian
+| `2A00`        | 2    | IFD marker `2400` ?
+| `00000008`    | 4    | Offset ?
+
+#### IFD structure
+The Image File Directory (IFD) structure contains image information data.
+
+| Field         | Size | Description
+| ------------- | ---- | ------------------------------------------
+| `NNNN`        | 2    | Number of file entries in the IFD
+| `XX...XX`     | 12   | Entry 0 Header: each entry gets a 12 byte header
+| `XX...XX`     | 12   | Entry 1 Header
+| ....          | ...  | ...
+| `XX...XX`     | 12   | Entry N Header
+
+#### IFD entry structure 
+
 
 ## XMP
 Extensible Metadata Platform (XMP)
@@ -303,18 +331,8 @@ manufacturers to develop non-standard ways to store large preview images in the 
 | `FFD8`                  | 2    | JPEG marker indicates this file is a JPEG image
 | `FFE1`                  | 2    | APP1 marker indicates this file contains EXIF metadata
 | `XXXX`                  | 2    | APP1 data size, in Big Endian, including the 2 size bytes so subtract 2
-| `4578 6966 0000`        | 6    | Exif header i.e. `Exif` and 2 bytes of `0x00`
-| `4949 2A00 0800 0000`   | 8    | Tiff header, 2 bytes of align `0x4949` is Little-Endian, `0x4D4D` is Big-Endian
 
-| `XXXX...`               | ?  | Data area of IFD1
-| `FFD8 XXXX...XXXX FFD9` | ?  | Thumbnail image
-
-* 8 bytes of TIFF header
-  * 2 bytes of byte alignment
-    * `0x4949` => `II` Intel a.k.a. Little-Endian
-    * `0x4D4D` => `MM` Motorola a.k.a. Big-Endian 
-  * 2 bytes of length formatted according to byte alignment
-  * 4 bytes of offset to get to the first IFD (Image File Directory)
+see [Exif structure](#exif-structure) for breakdown
 
 ### TIFF
 When Exif is embedded in a TIFF, the exif data is stored in a TIFF sub-image file directory (sub-IFD) 

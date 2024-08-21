@@ -1,7 +1,7 @@
 mod meta;
 
 pub mod errors;
-pub mod parsers;
+pub mod formats;
 
 use std::io;
 
@@ -16,8 +16,8 @@ use meta::*;
 /// ```
 pub mod prelude {
     pub use crate::errors;
+    pub use crate::formats::*;
     pub use crate::meta::*;
-    pub use crate::parsers::*;
 }
 
 /// Create a new meta data instance for the given media stream

@@ -3,7 +3,7 @@ use std::io::{self, Read};
 use super::{Exif, Jfif, Kind};
 use crate::{
     errors::{CastError, MetaError},
-    parsers::jpeg,
+    formats::jpeg,
 };
 
 /// Meta provides encapsulation for the different metadata types that can be parsed
