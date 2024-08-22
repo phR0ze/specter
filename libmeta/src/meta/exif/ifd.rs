@@ -16,10 +16,10 @@ pub(crate) mod format {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Ifd {
-    pub(crate) tag: u16,
-    pub(crate) format: u16,
-    pub(crate) components: u32,
-    pub(crate) offset: u32,
+    pub(crate) tag: u16,        // type of data
+    pub(crate) format: u16,     // data format
+    pub(crate) components: u32, // number of components
+    pub(crate) payload: u32,    // offset or actual data
 }
 
 impl Default for Ifd {
@@ -28,7 +28,7 @@ impl Default for Ifd {
             tag: 0,
             format: 0,
             components: 0,
-            offset: 0,
+            payload: 0,
         }
     }
 }
@@ -40,7 +40,7 @@ impl Ifd {
             tag,
             format,
             components,
-            offset,
+            payload: offset,
         }
     }
 
