@@ -1,23 +1,27 @@
+use nom::bytes::streaming as nom_bytes;
 use nom::number::streaming as nom_nums;
 
-use super::{Ifd, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN};
+use super::{IfdFile, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN};
 use crate::errors::ExifError;
+
+/// Simplify the Exif return type slightly
+pub type ExifResult<T> = Result<T, ExifError>;
 
 #[derive(Debug, Clone)]
 pub struct Exif {
-    alignment: Option<[u8; 2]>,
+    alignment: [u8; 2], // byte alignment, 0x4949 = Little-Endian, 0x4D4D = Big-Endian
 }
 
 impl Default for Exif {
     fn default() -> Self {
-        Self { alignment: None }
+        Self { alignment: [0, 0] }
     }
 }
 
 impl Exif {
     /// Check if the TIFF byte alignment is Big-Endian
     pub fn is_big_endian(&self) -> bool {
-        self.alignment == Some(BIG_ENDIAN)
+        self.alignment == BIG_ENDIAN
     }
 }
 
@@ -25,14 +29,14 @@ impl Exif {
 /// * **Field**        | **Bytes** | **Description**
 /// * *Identifier*     | 6     | `4578 6966 0000` = `Exif` and 2 bytes of padding 0000
 /// * *Tiff header*    | 8     | `4949 2A00 0800 0000`, 2 bytes align `0x4949` is Little-Endian, `0x4D4D` is Big-Endian
-pub fn parse(input: &[u8]) -> Result<Exif, ExifError> {
+pub fn parse(input: &[u8]) -> ExifResult<Exif> {
     let mut exif = Exif::default();
     let (remain, _) = parse_exif_header(input)?;
 
     // Parse alignment
     let (remain, alignment) = parse_tiff_alignment(remain)?;
     let big_endian = alignment == BIG_ENDIAN;
-    exif.alignment = Some(alignment);
+    exif.alignment = alignment;
 
     // Parse IFD 0 marker
     let (remain, marker) = parse_ifd_marker(remain, big_endian)?;
@@ -40,23 +44,13 @@ pub fn parse(input: &[u8]) -> Result<Exif, ExifError> {
         return Err(ExifError::marker_invalid());
     }
 
-    // Parse IFD 0 start offset e.g. 00 00 00 08 and then consume any bytes to get to the
-    // correct offset. This will allmost always be 0.
-    let (remain, offset) = parse_ifd_offset(remain, big_endian)?;
-    nom::bytes::streaming::take(offset - 8)(remain)
-        .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
-
-    // Parse ifd headers
-    let (remain, count) = parse_ifd_entries_count(remain, big_endian)?;
-    let (remain, headers) = parse_ifd_headers(remain, count, big_endian)?;
-
-    // Parse type of data format
+    // Parser offset to the next IFD: 4 bytes
 
     Ok(exif)
 }
 
 /// Parse the Exif header: 6 bytes `4578 6966 0000` => `Exif` and 2 bytes of padding 0000
-fn parse_exif_header(input: &[u8]) -> Result<(&[u8], [u8; 4]), ExifError> {
+fn parse_exif_header(input: &[u8]) -> ExifResult<(&[u8], [u8; 4])> {
     nom::sequence::terminated(
         nom::bytes::streaming::tag::<[u8; 4], &[u8], nom::error::Error<&[u8]>>(EXIF_IDENTIFIER),
         nom::bytes::streaming::tag::<[u8; 2], &[u8], nom::error::Error<&[u8]>>([0x00, 0x00]),
@@ -66,17 +60,18 @@ fn parse_exif_header(input: &[u8]) -> Result<(&[u8], [u8; 4]), ExifError> {
 }
 
 /// (2 bytes) Parse the TIFF header byte alignment
-fn parse_tiff_alignment(input: &[u8]) -> Result<(&[u8], [u8; 2]), ExifError> {
-    nom::branch::alt((
+fn parse_tiff_alignment(input: &[u8]) -> ExifResult<(&[u8], [u8; 2])> {
+    let (remain, alignment) = nom::branch::alt((
         nom::bytes::streaming::tag::<[u8; 2], &[u8], nom::error::Error<&[u8]>>(BIG_ENDIAN),
         nom::bytes::streaming::tag::<[u8; 2], &[u8], nom::error::Error<&[u8]>>(LITTLE_ENDIAN),
     ))(input)
-    .map(|(remain, x)| (remain, x.try_into().unwrap()))
-    .map_err(|x| ExifError::alignment_invalid().with_nom_source(x))
+    .map_err(|x| ExifError::alignment_invalid().with_nom_source(x))?;
+
+    Ok((remain, alignment.try_into().unwrap()))
 }
 
 /// (2 bytes) Parse the TIFF IFD 0 marker, always 2A00 or 0024
-fn parse_ifd_marker(input: &[u8], big_endian: bool) -> Result<(&[u8], u16), ExifError> {
+fn parse_ifd_marker(input: &[u8], big_endian: bool) -> ExifResult<(&[u8], u16)> {
     match big_endian {
         true => nom::number::streaming::be_u16(input),
         false => nom::number::streaming::le_u16(input),
@@ -86,7 +81,7 @@ fn parse_ifd_marker(input: &[u8], big_endian: bool) -> Result<(&[u8], u16), Exif
 
 /// Parse IFD start offset e.g. 00 00 00 08
 /// * (4 bytes) i.e. value of 8 means IFD starts 8 bytes from start of TIFF header
-fn parse_ifd_offset(input: &[u8], big_endian: bool) -> Result<(&[u8], u32), ExifError> {
+fn parse_ifd_offset(input: &[u8], big_endian: bool) -> ExifResult<(&[u8], u32)> {
     match big_endian {
         true => nom_nums::be_u32(input),
         false => nom_nums::le_u32(input),
@@ -95,7 +90,7 @@ fn parse_ifd_offset(input: &[u8], big_endian: bool) -> Result<(&[u8], u32), Exif
 }
 
 /// (2 bytes) Parse number of file entries in the IFD
-fn parse_ifd_entries_count(input: &[u8], big_endian: bool) -> Result<(&[u8], u16), ExifError> {
+fn parse_ifd_file_count(input: &[u8], big_endian: bool) -> ExifResult<(&[u8], u16)> {
     match big_endian {
         true => nom_nums::be_u16(input),
         false => nom_nums::le_u16(input),
@@ -103,53 +98,53 @@ fn parse_ifd_entries_count(input: &[u8], big_endian: bool) -> Result<(&[u8], u16
     .map_err(|x| ExifError::count_invalid().with_nom_source(x))
 }
 
-/// Parse file headers in the IFD, 12 bytes each
+/// Parse IFD file header, 12 bytes each in each file header
 /// e.g. TT TT ff ff NN NN NN NN DD DD DD DD
 /// * 2 byte Tag number
 /// * 2 byte Data format
 /// * 4 byte Number of components
 /// * 4 byte Offset to data value
-fn parse_ifd_header(input: &[u8], big_endian: bool) -> Result<(&[u8], Ifd), ExifError> {
+fn parse_ifd_file_header(input: &[u8], big_endian: bool) -> ExifResult<(&[u8], IfdFile)> {
     // tag: 2 bytes
     let (remain, tag) = match big_endian {
         true => nom_nums::be_u16(input),
         false => nom_nums::le_u16(input),
     }
-    .map_err(|x| ExifError::ifd_header_tag_failed().with_nom_source(x))?;
+    .map_err(|x| ExifError::ifd_file_tag_failed().with_nom_source(x))?;
 
     // data format: 2 bytes
     let (remain, format) = match big_endian {
         true => nom_nums::be_u16(remain),
         false => nom_nums::le_u16(remain),
     }
-    .map_err(|x| ExifError::ifd_header_data_format_failed().with_nom_source(x))?;
+    .map_err(|x| ExifError::ifd_file_data_format_failed().with_nom_source(x))?;
 
     // number of components: 4 bytes
     let (remain, components) = match big_endian {
         true => nom_nums::be_u32(remain),
         false => nom_nums::le_u32(remain),
     }
-    .map_err(|x| ExifError::ifd_header_component_count_failed().with_nom_source(x))?;
+    .map_err(|x| ExifError::ifd_file_component_count_failed().with_nom_source(x))?;
 
     // offset to data value: 4 bytes
     let (remain, offset) = parse_ifd_offset(remain, big_endian)?;
 
-    Ok((remain, Ifd::new(tag, format, components, offset)))
+    Ok((remain, IfdFile::new(tag, format, components, offset)))
 }
 
-/// Parse the ifd headers.
-/// * Use that count in a loop to parse out each header
-fn parse_ifd_headers(
+/// Parse the ifd file headers
+/// * Use the count in a loop to parse out each file header
+fn parse_ifd_file_headers(
     input: &[u8],
     count: u16,
     big_endian: bool,
-) -> Result<(&[u8], Vec<Ifd>), ExifError> {
+) -> ExifResult<(&[u8], Vec<IfdFile>)> {
     let mut ifds = Vec::new();
 
-    // Parse out the ifd header count
+    // Parse out each of the IFD files, headers only
     let mut remain: &[u8] = input;
     for _ in 0..count {
-        let (r, ifd) = parse_ifd_header(remain, big_endian)?;
+        let (r, ifd) = parse_ifd_file_header(remain, big_endian)?;
         remain = r;
         ifds.push(ifd);
     }
@@ -157,51 +152,147 @@ fn parse_ifd_headers(
     Ok((remain, ifds))
 }
 
+/// Get IFD offset then skip to that location
+fn parse_ifd_offset_and_skip<'a>(
+    input: &'a [u8],
+    remain: &'a [u8],
+    big_endian: bool,
+) -> ExifResult<(&'a [u8], u32)> {
+    let (remain, offset) = parse_ifd_offset(remain, big_endian)?;
+    let (remain, _) = nom_bytes::take(offset as usize - (input.len() - remain.len()))(remain)
+        .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
+    Ok((remain, offset))
+}
+
+/// Parse IFD
+/// * **4 bytes** of IFD offset
+/// * **2 bytes** of IFD file count
+/// * **12 bytes** for each IFD file
+fn parse_ifd<'a>(input: &[u8], remain: &[u8], big_endian: bool) -> ExifResult<(&'a [u8], Vec<u8>)> {
+    let (remain, _) = parse_ifd_offset_and_skip(input, remain, big_endian)?;
+
+    // Parse ifd files
+    let (remain, count) = parse_ifd_file_count(remain, big_endian)?;
+    let (remain, files) = parse_ifd_file_headers(remain, count, big_endian)?;
+
+    Err(ExifError::file_failed())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{errors::BaseError, exif::LITTLE_ENDIAN};
 
-    const IFD_HEADER_BE: [u8; 12] = [
+    const IFD_BE: [u8; 12] = [
         0x01, 0x0e, // tag
         0x00, 0x02, // data format
         0x00, 0x00, 0x00, 0x0b, // number of components
         0x00, 0x00, 0x00, 0x56, // data value or offset
     ];
 
-    const IFD_HEADER_LE: [u8; 12] = [
-        0x0e, 0x01, // tag
-        0x02, 0x00, // data format
-        0x0b, 0x00, 0x00, 0x00, // number of components
-        0x56, 0x00, 0x00, 0x00, // data value or offset
+    const IFD_LE: [u8; 46] = [
+        0x49, 0x49, // alignment, little endian
+        0x2A, 0x00, // ifd marker
+        0x08, 0x00, 0x00, 0x00, // (8) offset from start of TIFF header
+        0x02, 0x00, // file count
+        // 10 bytes consumed
+        // file header 1
+        0x1A, 0x01, // tag 0x011A, XResolution
+        0x05, 0x00, // data format 5, unsigned rational
+        0x01, 0x00, 0x00, 0x00, // components 1
+        0x26, 0x00, 0x00, 0x00, // data length is (1)(8)=8 bytes which means payload is offset
+        // 22 bytes consumed
+        // file header 2
+        0x69, 0x87, // tag
+        0x04, 0x00, // data format 4, unsigned long
+        0x01, 0x00, 0x00, 0x00, // components 1
+        0x11, 0x02, 0x00, 0x00, // data length is (1)(4)=4 bytes which means payload is 0x0211
+        // 34 bytes consumed
+        0x40, 0x00, 0x00, 0x00, // Next IFD offset: starts at 0x40
+        // 38 bytes consumed
+        0x48, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, // data for file 1
     ];
 
     const EXIF_HEADER: [u8; 6] = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00];
 
     #[test]
-    fn test_parse_ifd_headers_big_endian() {
-        let headers = [IFD_HEADER_BE, IFD_HEADER_BE, IFD_HEADER_BE].concat();
-        let (remain, ifds) = parse_ifd_headers(&headers, 2, true).unwrap();
-        assert_eq!(remain, &IFD_HEADER_BE);
-
-        let ifd = &ifds[0];
-        assert_eq!(ifd.tag, 270);
-        assert_eq!(ifd.format, 2);
-        assert_eq!(ifd.components, 11);
-        assert_eq!(ifd.data_length(), 11);
-        assert_eq!(ifd.payload, 86);
-
-        let ifd = &ifds[1];
-        assert_eq!(ifd.tag, 270);
-        assert_eq!(ifd.format, 2);
-        assert_eq!(ifd.components, 11);
-        assert_eq!(ifd.data_length(), 11);
-        assert_eq!(ifd.payload, 86);
+    fn test_parse_ifd_file_data_little_endian() {
+        let files = &IFD_LE[10..];
     }
 
     #[test]
-    fn test_parse_ifd_header_little_endian() {
-        let (remain, ifd) = parse_ifd_header(&IFD_HEADER_LE, false).unwrap();
+    fn test_parse_ifd_files_little_endian() {
+        let files = &IFD_LE[10..];
+        let (remain, files) = parse_ifd_file_headers(&files, 2, true).unwrap();
+        //assert_eq!(remain, &IFD_BE);
+
+        // let file = &files[0];
+        // let (remain, ifd) = parse_ifd_file(&data, false).unwrap();
+        // assert_eq!(remain, &IFD_FILES_LE[22..]);
+        // assert_eq!(ifd.tag, 282);
+        // assert_eq!(ifd.format, 5);
+        // assert_eq!(ifd.components, 1);
+        // assert_eq!(ifd.data_length(), 8);
+        // assert_eq!(ifd.payload, 38);
+        // d
+
+        // assert_eq!(ifd.tag, 270);
+        // assert_eq!(ifd.format, 2);
+        // assert_eq!(ifd.components, 11);
+        // assert_eq!(ifd.data_length(), 11);
+        // assert_eq!(ifd.payload, 86);
+
+        // let file = &files[1];
+        // assert_eq!(file.tag, 270);
+        // assert_eq!(file.format, 2);
+        // assert_eq!(file.components, 11);
+        // assert_eq!(file.data_length(), 11);
+        // assert_eq!(file.payload, 86);
+    }
+
+    #[test]
+    fn test_parse_ifd_offset_skip_little_endian() {
+        let (remain, offset) = parse_ifd_offset_and_skip(&IFD_LE, &IFD_LE[4..], false).unwrap();
+        assert_eq!(remain, &IFD_LE[8..]);
+        assert_eq!(offset, 8);
+    }
+
+    #[test]
+    fn test_parse_ifd_files_big_endian() {
+        let data = [IFD_BE, IFD_BE, IFD_BE].concat();
+        let (remain, headers) = parse_ifd_file_headers(&data, 2, true).unwrap();
+        assert_eq!(remain, &IFD_BE);
+
+        let header = &headers[0];
+        assert_eq!(header.tag, 270);
+        assert_eq!(header.format, 2);
+        assert_eq!(header.components, 11);
+        assert_eq!(header.data_length(), 11);
+        assert_eq!(header.payload, 86);
+
+        let header = &headers[1];
+        assert_eq!(header.tag, 270);
+        assert_eq!(header.format, 2);
+        assert_eq!(header.components, 11);
+        assert_eq!(header.data_length(), 11);
+        assert_eq!(header.payload, 86);
+    }
+
+    #[test]
+    fn test_parse_ifd_file_header_little_endian() {
+        let data = &IFD_LE[10..];
+        let (remain, ifd) = parse_ifd_file_header(&data, false).unwrap();
+        assert_eq!(remain, &IFD_LE[22..]);
+        assert_eq!(ifd.tag, 282);
+        assert_eq!(ifd.format, 5);
+        assert_eq!(ifd.components, 1);
+        assert_eq!(ifd.data_length(), 8);
+        assert_eq!(ifd.payload, 38);
+    }
+
+    #[test]
+    fn test_parse_ifd_file_header_big_endian() {
+        let (remain, ifd) = parse_ifd_file_header(&IFD_BE, true).unwrap();
         assert_eq!(remain, &[]);
         assert_eq!(ifd.tag, 270);
         assert_eq!(ifd.format, 2);
@@ -211,19 +302,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_ifd_header_big_endian() {
-        let (remain, ifd) = parse_ifd_header(&IFD_HEADER_BE, true).unwrap();
-        assert_eq!(remain, &[]);
-        assert_eq!(ifd.tag, 270);
-        assert_eq!(ifd.format, 2);
-        assert_eq!(ifd.components, 11);
-        assert_eq!(ifd.data_length(), 11);
-        assert_eq!(ifd.payload, 86);
-    }
-
-    #[test]
-    fn test_parse_tiff_ifd_entries_count_not_enough_data() {
-        let err = parse_ifd_entries_count(&[0xFF], true).unwrap_err();
+    fn test_parse_ifd_file_count_not_enough_data() {
+        let err = parse_ifd_file_count(&[0xFF], true).unwrap_err();
         assert_eq!(err.to_string(), "Exif IFD entries count invalid");
         assert_eq!(
             err.source_to_string(),
@@ -232,21 +312,21 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_tiff_ifd_entries_count_little_endian() {
-        let (remain, marker) = parse_ifd_entries_count(&[0x01, 0x00], false).unwrap();
+    fn test_parse_ifd_file_count_little_endian() {
+        let (remain, marker) = parse_ifd_file_count(&[0x01, 0x00], false).unwrap();
         assert_eq!(remain, &[]);
         assert_eq!(marker, 0x1);
     }
 
     #[test]
-    fn test_parse_tiff_ifd_entries_count_big_endian() {
-        let (remain, marker) = parse_ifd_entries_count(&[0x00, 0x01], true).unwrap();
+    fn test_parse_ifd_file_count_big_endian() {
+        let (remain, marker) = parse_ifd_file_count(&[0x00, 0x01], true).unwrap();
         assert_eq!(remain, &[]);
         assert_eq!(marker, 0x1);
     }
 
     #[test]
-    fn test_parse_tiff_ifd_offset_not_enough_data() {
+    fn test_parse_ifd_offset_not_enough_data() {
         let err = parse_ifd_offset(&[0xFF], true).unwrap_err();
         assert_eq!(err.to_string(), "Exif IFD offset failed");
         assert_eq!(
@@ -256,21 +336,21 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_tiff_ifd_offset_little_endian() {
+    fn test_parse_ifd_offset_little_endian() {
         let (remain, marker) = parse_ifd_offset(&[0x24, 0x00, 0x00, 0x00], false).unwrap();
         assert_eq!(remain, &[]);
         assert_eq!(marker, 0x24);
     }
 
     #[test]
-    fn test_parse_tiff_ifd_offset_big_endian() {
+    fn test_parse_ifd_offset_big_endian() {
         let (remain, marker) = parse_ifd_offset(&[0x00, 0x00, 0x00, 0x24], true).unwrap();
         assert_eq!(remain, &[]);
         assert_eq!(marker, 0x24);
     }
 
     #[test]
-    fn test_parse_tiff_ifd_marker_not_enough_data() {
+    fn test_parse_ifd_marker_not_enough_data() {
         let err = parse_ifd_marker(&[0xFF], true).unwrap_err();
         assert_eq!(err.to_string(), "Exif IFD marker invalid");
         assert_eq!(
@@ -280,14 +360,14 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_tiff_ifd_marker_little_endian() {
+    fn test_parse_ifd_marker_little_endian() {
         let (remain, marker) = parse_ifd_marker(&[0x24, 0x00], false).unwrap();
         assert_eq!(remain, &[]);
         assert_eq!(marker, 0x24);
     }
 
     #[test]
-    fn test_parse_tiff_ifd_marker_big_endian() {
+    fn test_parse_ifd_marker_big_endian() {
         let (remain, marker) = parse_ifd_marker(&[0x00, 0x24], true).unwrap();
         assert_eq!(remain, &[]);
         assert_eq!(marker, 0x24);

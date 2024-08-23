@@ -39,20 +39,20 @@ impl ExifError {
         ExifError::new(ExifErrorKind::OffsetFailed)
     }
 
-    pub fn entry_header_failed() -> Self {
-        ExifError::new(ExifErrorKind::EntryHeaderFailed)
+    pub fn file_failed() -> Self {
+        ExifError::new(ExifErrorKind::FileFailed)
     }
 
-    pub fn ifd_header_tag_failed() -> Self {
-        ExifError::new(ExifErrorKind::IfdHeaderTagFailed)
+    pub fn ifd_file_tag_failed() -> Self {
+        ExifError::new(ExifErrorKind::IfdFileTagFailed)
     }
 
-    pub fn ifd_header_data_format_failed() -> Self {
-        ExifError::new(ExifErrorKind::IfdHeaderDataFormatFailed)
+    pub fn ifd_file_data_format_failed() -> Self {
+        ExifError::new(ExifErrorKind::IfdFileDataFormatFailed)
     }
 
-    pub fn ifd_header_component_count_failed() -> Self {
-        ExifError::new(ExifErrorKind::IfdHeaderComponentCountFailed)
+    pub fn ifd_file_component_count_failed() -> Self {
+        ExifError::new(ExifErrorKind::IfdFileComponentCountFailed)
     }
 
     // Add additional error data for output with the error message
@@ -95,13 +95,13 @@ impl fmt::Display for ExifError {
             ExifErrorKind::MarkerInvalid => write!(f, "Exif IFD marker invalid")?,
             ExifErrorKind::CountInvalid => write!(f, "Exif IFD entries count invalid")?,
             ExifErrorKind::OffsetFailed => write!(f, "Exif IFD offset failed")?,
-            ExifErrorKind::EntryHeaderFailed => write!(f, "Exif IFD entry header failed")?,
-            ExifErrorKind::IfdHeaderTagFailed => write!(f, "Exif IFD header tag failed")?,
-            ExifErrorKind::IfdHeaderDataFormatFailed => {
-                write!(f, "Exif IFD header data format failed")?
+            ExifErrorKind::FileFailed => write!(f, "Exif IFD file failed")?,
+            ExifErrorKind::IfdFileTagFailed => write!(f, "Exif IFD file tag failed")?,
+            ExifErrorKind::IfdFileDataFormatFailed => {
+                write!(f, "Exif IFD file data format failed")?
             }
-            ExifErrorKind::IfdHeaderComponentCountFailed => {
-                write!(f, "Exif IFD header component count failed")?
+            ExifErrorKind::IfdFileComponentCountFailed => {
+                write!(f, "Exif IFD file component count failed")?
             }
         };
 
@@ -145,10 +145,10 @@ pub enum ExifErrorKind {
     MarkerInvalid,
     CountInvalid,
     OffsetFailed,
-    EntryHeaderFailed,
-    IfdHeaderTagFailed,
-    IfdHeaderDataFormatFailed,
-    IfdHeaderComponentCountFailed,
+    FileFailed,
+    IfdFileTagFailed,
+    IfdFileDataFormatFailed,
+    IfdFileComponentCountFailed,
 }
 
 #[cfg(test)]
