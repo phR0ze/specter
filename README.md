@@ -29,6 +29,10 @@ Media curation toolkit - WIP, just doing research
   * Facial detection
   * Duplicate detection
   * Sort based on EXIF data
+  * Database free?
+
+### Inspiration
+* Geeqie
 
 ## Backlog
 * Prototyping out ideas

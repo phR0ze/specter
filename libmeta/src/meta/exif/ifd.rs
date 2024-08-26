@@ -1,26 +1,15 @@
+use super::IfdFile;
+
 #[derive(Debug, Clone)]
 pub(crate) struct Ifd {
-    // pub(crate) tag: u16,              // type of data
+    pub(crate) files: Vec<IfdFile>,
 }
 
 impl Default for Ifd {
     fn default() -> Self {
-        Self {}
+        Self { files: Vec::new() }
     }
 }
-
-// impl Ifd {
-//     // Create a new IFD file
-//     pub(crate) fn new(tag: u16, format: u16, components: u32) -> Self {
-//         Self {
-//             tag,
-//             format,
-//             components,
-//             offset: None,
-//             data: None,
-//         }
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

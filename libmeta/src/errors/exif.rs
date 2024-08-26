@@ -23,7 +23,7 @@ impl ExifError {
         ExifError::new(ExifErrorKind::IdentifierInvalid)
     }
 
-    pub fn alignment_invalid() -> Self {
+    pub fn endian_invalid() -> Self {
         ExifError::new(ExifErrorKind::AlignmentInvalid)
     }
 
@@ -56,7 +56,7 @@ impl ExifError {
     }
 
     // Add additional error data for output with the error message
-    pub fn with_str<T: fmt::Display>(mut self, str: T) -> Self {
+    pub fn with_msg<T: fmt::Display>(mut self, str: T) -> Self {
         self.data = Some(ExifErrorDataKind::String(str.to_string()));
         self
     }
