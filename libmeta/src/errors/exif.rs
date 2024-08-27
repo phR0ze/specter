@@ -43,15 +43,15 @@ impl ExifError {
         ExifError::new(ExifErrorKind::FileFailed)
     }
 
-    pub fn ifd_file_tag_failed() -> Self {
+    pub fn ifd_entry_tag_failed() -> Self {
         ExifError::new(ExifErrorKind::IfdFileTagFailed)
     }
 
-    pub fn ifd_file_data_format_failed() -> Self {
+    pub fn ifd_entry_data_format_failed() -> Self {
         ExifError::new(ExifErrorKind::IfdFileDataFormatFailed)
     }
 
-    pub fn ifd_file_component_count_failed() -> Self {
+    pub fn ifd_entry_components_failed() -> Self {
         ExifError::new(ExifErrorKind::IfdFileComponentCountFailed)
     }
 
@@ -95,13 +95,13 @@ impl fmt::Display for ExifError {
             ExifErrorKind::MarkerInvalid => write!(f, "Exif IFD marker invalid")?,
             ExifErrorKind::CountInvalid => write!(f, "Exif IFD entries count invalid")?,
             ExifErrorKind::OffsetFailed => write!(f, "Exif IFD offset failed")?,
-            ExifErrorKind::FileFailed => write!(f, "Exif IFD file failed")?,
-            ExifErrorKind::IfdFileTagFailed => write!(f, "Exif IFD file tag failed")?,
+            ExifErrorKind::FileFailed => write!(f, "Exif IFD entry failed")?,
+            ExifErrorKind::IfdFileTagFailed => write!(f, "Exif IFD entry tag failed")?,
             ExifErrorKind::IfdFileDataFormatFailed => {
-                write!(f, "Exif IFD file data format failed")?
+                write!(f, "Exif IFD entry data format failed")?
             }
             ExifErrorKind::IfdFileComponentCountFailed => {
-                write!(f, "Exif IFD file component count failed")?
+                write!(f, "Exif IFD entry component count failed")?
             }
         };
 

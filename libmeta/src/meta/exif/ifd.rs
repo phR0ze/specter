@@ -1,13 +1,15 @@
-use super::IfdFile;
+use super::IfdEntry;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Ifd {
-    pub(crate) files: Vec<IfdFile>,
+    pub(crate) entries: Vec<IfdEntry>,
 }
 
 impl Default for Ifd {
     fn default() -> Self {
-        Self { files: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 }
 
