@@ -1,3 +1,16 @@
+pub(crate) const IMAGE_WIDTH: u16 = 0x0100;
+
+pub(crate) const IMAGE_HEIGHT: u16 = 0x0101;
+
+pub(crate) const BITS_PER_SAMPLE: u16 = 0x0102;
+
+/// Compression scheme used on the image data.
+/// * 1 = Uncompressed
+pub(crate) const COMPRESSION: u16 = 0x0103;
+
+/// * 2 = RGB
+pub(crate) const PHOTOMETRIC_INTERPRETATION: u16 = 0x0106;
+
 /// Describes the image
 /// * **Format**: ASCII string
 pub(crate) const IMAGE_DESCRIPTION: u16 = 0x010E;
@@ -9,6 +22,8 @@ pub(crate) const MAKE: u16 = 0x010F;
 /// Shows model number of digicam
 /// * **Format**: ASCII string
 pub(crate) const MODEL: u16 = 0x0110;
+
+pub(crate) const STRIP_OFFSETS: u16 = 0x0111;
 
 /// Shows orientation of the camera
 /// 1 = upper left, 3 = lower right, 6 = upper right, 8 = lower left, 9 = undefined

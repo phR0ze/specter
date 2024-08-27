@@ -1,8 +1,8 @@
-use super::IfdEntry;
+use super::IfdTag;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Ifd {
-    pub(crate) entries: Vec<IfdEntry>,
+    pub(crate) entries: Vec<IfdTag>,
 }
 
 impl Default for Ifd {

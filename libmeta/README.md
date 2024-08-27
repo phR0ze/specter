@@ -129,14 +129,6 @@ The Exif tag structure is borrowed from the TIFF format.
 | `4578 6966 0000`        | 6    | Exif header i.e. `Exif` and 2 bytes of `0x00`
 | `4949 2A00 0800 0000`   | 8    | Tiff header, 2 bytes of align `0x4949` is Little-Endian, `0x4D4D` is Big-Endian
 
-#### TIFF header
-
-| Field         | Size | Description
-| ------------- | ---- | ------------------------------------------
-| `4949`        | 2    | Alignment of `4949` i.e. `II` or Intel is Little-Endian, `4D4D` i.e. `MM` or Motorola is Big-Endian
-| `2A00`        | 2    | IFD marker `2400` ?
-| `00000008`    | 4    | Offset ?
-
 #### IFD structure
 The Image File Directory (IFD) structure contains image information data.
 
@@ -326,11 +318,11 @@ exif data should reside in the APP1 segment although the `FlashPix` extensions a
 span `APP1` and `APP2` segments however this is not commonly used. This has led some camera 
 manufacturers to develop non-standard ways to store large preview images in the image.
 
-| Field                   | Size | Description
-| ----------------------- | ---- | ------------------------------------------
-| `FFD8`                  | 2    | JPEG marker indicates this file is a JPEG image
-| `FFE1`                  | 2    | APP1 marker indicates this file contains EXIF metadata
-| `XXXX`                  | 2    | APP1 data size, in Big Endian, including the 2 size bytes so subtract 2
+| Field         | Size | Description
+| ------------- | ---- | ------------------------------------------
+| `FFD8`        | 2    | JPEG marker indicates this file is a JPEG image
+| `FFE1`        | 2    | APP1 marker indicates this file contains EXIF metadata
+| `XXXX`        | 2    | APP1 data size, in Big Endian, including the 2 size bytes so subtract 2
 
 see [Exif structure](#exif-structure) for breakdown
 
@@ -338,3 +330,32 @@ see [Exif structure](#exif-structure) for breakdown
 When Exif is embedded in a TIFF, the exif data is stored in a TIFF sub-image file directory (sub-IFD) 
 using the tag `0x8769` or the global sub-IFD defined by the tag `0x8825` or the Interoperability IFD 
 defined with the tag `0xA005`.
+
+**References**
+* [Tiff - Paul Bourke](https://paulbourke.net/dataformats/tiff/)
+* [Tiff Spec Summary](https://paulbourke.net/dataformats/tiff/tiff_summary.pdf)
+
+#### TIFF Structure
+TIFF files are organized into three sections: the Image File Header (IFH), the Image File Directory 
+(IFD) and the bitmap data. Only the IFH and IFD are required. TIFF files can contain multiple images. 
+There is no limit on the number if IFDs in a TIFF.
+
+#### TIFF header
+First 8 bytes make up the header
+
+| Field         | Size | Description
+| ------------- | ---- | ------------------------------------------
+| `4D4D`        | 2    | Alignment of `4949` i.e. `II` or Intel is Little-Endian, `4D4D` i.e. `MM` or Motorola is Big-Endian
+| `002A`        | 2    | TIFF identifier `0024` or `2400` depending on endian
+| `00000008`    | 4    | Offset from the start of the TIFF to the first IFD
+
+#### TIFF IFD structure
+An IFD consists of two bytes indicating the number of entries followed by the entries themselves. The 
+IFD is terminated with 4 bytes of offset to the next IFD or 0 if there are none. All TIFF files must 
+contain at least one IFD.
+
+| Field         | Size | Description
+| ------------- | ---- | ------------------------------------------
+| `LLLL`        | 2    | Number of entries in the IFD
+| `XX...XX`     | 12n  | 12 bytes per entry for all entries
+| `00000008`    | 4    | Offset to the next IFD or zero if no more `00000000`

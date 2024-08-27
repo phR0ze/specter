@@ -27,32 +27,28 @@ impl ExifError {
         ExifError::new(ExifErrorKind::AlignmentInvalid)
     }
 
-    pub fn marker_invalid() -> Self {
-        ExifError::new(ExifErrorKind::MarkerInvalid)
-    }
-
     pub fn count_invalid() -> Self {
-        ExifError::new(ExifErrorKind::CountInvalid)
+        ExifError::new(ExifErrorKind::TagCountInvalid)
     }
 
     pub fn offset_failed() -> Self {
         ExifError::new(ExifErrorKind::OffsetFailed)
     }
 
-    pub fn file_failed() -> Self {
-        ExifError::new(ExifErrorKind::FileFailed)
+    pub fn tag_failed() -> Self {
+        ExifError::new(ExifErrorKind::TagFailed)
     }
 
-    pub fn ifd_entry_tag_failed() -> Self {
-        ExifError::new(ExifErrorKind::IfdFileTagFailed)
+    pub fn ifd_tag_failed() -> Self {
+        ExifError::new(ExifErrorKind::IfdTagIdFailed)
     }
 
-    pub fn ifd_entry_data_format_failed() -> Self {
-        ExifError::new(ExifErrorKind::IfdFileDataFormatFailed)
+    pub fn ifd_tag_data_format_failed() -> Self {
+        ExifError::new(ExifErrorKind::IfdTagDataFormatFailed)
     }
 
-    pub fn ifd_entry_components_failed() -> Self {
-        ExifError::new(ExifErrorKind::IfdFileComponentCountFailed)
+    pub fn ifd_tag_components_failed() -> Self {
+        ExifError::new(ExifErrorKind::IfdTagComponentCountFailed)
     }
 
     // Add additional error data for output with the error message
@@ -92,16 +88,13 @@ impl fmt::Display for ExifError {
         match &self.kind {
             ExifErrorKind::IdentifierInvalid => write!(f, "Exif identifier invalid")?,
             ExifErrorKind::AlignmentInvalid => write!(f, "Exif TIFF alignment invalid")?,
-            ExifErrorKind::MarkerInvalid => write!(f, "Exif IFD marker invalid")?,
-            ExifErrorKind::CountInvalid => write!(f, "Exif IFD entries count invalid")?,
+            ExifErrorKind::TagCountInvalid => write!(f, "Exif IFD tag count invalid")?,
             ExifErrorKind::OffsetFailed => write!(f, "Exif IFD offset failed")?,
-            ExifErrorKind::FileFailed => write!(f, "Exif IFD entry failed")?,
-            ExifErrorKind::IfdFileTagFailed => write!(f, "Exif IFD entry tag failed")?,
-            ExifErrorKind::IfdFileDataFormatFailed => {
-                write!(f, "Exif IFD entry data format failed")?
-            }
-            ExifErrorKind::IfdFileComponentCountFailed => {
-                write!(f, "Exif IFD entry component count failed")?
+            ExifErrorKind::TagFailed => write!(f, "Exif IFD tag failed")?,
+            ExifErrorKind::IfdTagIdFailed => write!(f, "Exif IFD tag id failed")?,
+            ExifErrorKind::IfdTagDataFormatFailed => write!(f, "Exif IFD tag data format failed")?,
+            ExifErrorKind::IfdTagComponentCountFailed => {
+                write!(f, "Exif IFD tag component count failed")?
             }
         };
 
@@ -142,13 +135,12 @@ pub enum ExifErrorDataKind {
 pub enum ExifErrorKind {
     IdentifierInvalid,
     AlignmentInvalid,
-    MarkerInvalid,
-    CountInvalid,
+    TagCountInvalid,
     OffsetFailed,
-    FileFailed,
-    IfdFileTagFailed,
-    IfdFileDataFormatFailed,
-    IfdFileComponentCountFailed,
+    TagFailed,
+    IfdTagIdFailed,
+    IfdTagDataFormatFailed,
+    IfdTagComponentCountFailed,
 }
 
 #[cfg(test)]
