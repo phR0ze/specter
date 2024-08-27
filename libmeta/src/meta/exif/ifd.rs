@@ -1,15 +1,13 @@
-use super::IfdTag;
+use super::IfdField;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Ifd {
-    pub(crate) entries: Vec<IfdTag>,
+    pub(crate) fields: Vec<IfdField>,
 }
 
 impl Default for Ifd {
     fn default() -> Self {
-        Self {
-            entries: Vec::new(),
-        }
+        Self { fields: Vec::new() }
     }
 }
 

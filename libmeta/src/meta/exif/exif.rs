@@ -3,7 +3,7 @@ use core::panic;
 use nom::bytes::streaming as nom_bytes;
 use nom::number::streaming as nom_nums;
 
-use super::{Ifd, IfdTag, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN};
+use super::{Ifd, IfdField, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN};
 use crate::errors::ExifError;
 
 /// Simplify the Exif return type slightly
@@ -111,7 +111,7 @@ fn parse_ifd_data_or_offset(input: &[u8], endian: Endian) -> ExifResult<(&[u8], 
 }
 
 /// (2 bytes) Parse number of entries in the IFD
-fn parse_ifd_tag_count(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u16)> {
+fn parse_ifd_field_count(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u16)> {
     match endian {
         Endian::Big => nom_nums::be_u16(input),
         Endian::Little => nom_nums::le_u16(input),
@@ -119,7 +119,7 @@ fn parse_ifd_tag_count(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u16)>
     .map_err(|x| ExifError::count_invalid().with_nom_source(x))
 }
 
-/// Parse IFD tag which is 12 bytes of header an arbitrary data component
+/// Parse IFD field which is 12 bytes of header an arbitrary data component
 /// e.g. TT TT ff ff NN NN NN NN DD DD DD DD
 /// * 2 byte Tag number
 /// * 2 byte Data format
@@ -127,39 +127,39 @@ fn parse_ifd_tag_count(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u16)>
 /// * 4 byte Offset to data value or data itself
 /// * **input** is the full data source from tiff header alignment
 /// * **remain** is where the header starts
-/// * Returns: (remaining bytes, IfdTag)
-fn parse_ifd_tag<'a>(
+/// * Returns: (remaining bytes, IfdField)
+fn parse_ifd_field<'a>(
     input: &'a [u8],
     remain: &'a [u8],
     endian: Endian,
-) -> ExifResult<(&'a [u8], IfdTag)> {
+) -> ExifResult<(&'a [u8], IfdField)> {
     // tag: 2 bytes
     let (remain, tag) = match endian {
         Endian::Big => nom_nums::be_u16(remain),
         Endian::Little => nom_nums::le_u16(remain),
     }
-    .map_err(|x| ExifError::ifd_tag_failed().with_nom_source(x))?;
+    .map_err(|x| ExifError::ifd_field_tag_failed().with_nom_source(x))?;
 
     // data format: 2 bytes
     let (remain, format) = match endian {
         Endian::Big => nom_nums::be_u16(remain),
         Endian::Little => nom_nums::le_u16(remain),
     }
-    .map_err(|x| ExifError::ifd_tag_data_format_failed().with_nom_source(x))?;
+    .map_err(|x| ExifError::ifd_field_data_format_failed().with_nom_source(x))?;
 
     // number of components: 4 bytes
     let (remain, components) = match endian {
         Endian::Big => nom_nums::be_u32(remain),
         Endian::Little => nom_nums::le_u32(remain),
     }
-    .map_err(|x| ExifError::ifd_tag_components_failed().with_nom_source(x))?;
+    .map_err(|x| ExifError::ifd_field_components_failed().with_nom_source(x))?;
 
     // offset to data value: 4 bytes
     let (remain, data, offset) = parse_ifd_data_or_offset(remain, endian)?;
 
-    // create the ifd tag and calculate if there is an offset to extract data from
-    let mut tag = IfdTag::new(tag, format, components);
-    if tag.data_length() > 4 {
+    // create the ifd field and calculate if there is an offset to extract data from
+    let mut field = IfdField::new(tag, format, components);
+    if field.data_length() > 4 {
         let remain = remain; // save the current position by creating a new variable
 
         // skip to the offset location
@@ -176,17 +176,17 @@ fn parse_ifd_tag<'a>(
         };
 
         // read the data from the offset location
-        let (_, data) = nom_bytes::take(tag.data_length())(remain)
+        let (_, data) = nom_bytes::take(field.data_length())(remain)
             .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
 
-        // Update the tag with the correct offset and data
-        tag.offset = Some(offset);
-        tag.data = Some(data.to_vec());
+        // Update the field with the correct offset and data
+        field.offset = Some(offset);
+        field.data = Some(data.to_vec());
     } else {
-        tag.data = Some(data.to_vec());
+        field.data = Some(data.to_vec());
     }
 
-    Ok((remain, tag))
+    Ok((remain, field))
 }
 
 /// Parse IFD
@@ -201,14 +201,14 @@ fn parse_ifd<'a>(input: &'a [u8], remain: &'a [u8], endian: Endian) -> ExifResul
         .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
 
     // Parse out the number of IFD entries to expect
-    let (remain, count) = parse_ifd_tag_count(remain, endian)?;
+    let (remain, count) = parse_ifd_field_count(remain, endian)?;
 
     // Parse out each of the IFD entries
     let mut remain = remain;
     for _ in 0..count {
-        let (r, f) = parse_ifd_tag(input, remain, endian)?;
+        let (r, f) = parse_ifd_field(input, remain, endian)?;
         remain = r;
-        ifd.entries.push(f);
+        ifd.fields.push(f);
     }
 
     Ok((remain, ifd))
@@ -219,7 +219,7 @@ mod tests {
     use super::*;
     use crate::{
         errors::BaseError,
-        exif::{format, tags, LITTLE_ENDIAN},
+        exif::{format, id, LITTLE_ENDIAN},
         formats::jpeg::JPEG_TEST_DATA,
     };
 
@@ -240,72 +240,72 @@ mod tests {
 
     #[test]
     fn test_parse_jpeg_parts() {
-        let (remain, tag0) =
-            parse_ifd_tag(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[40..], Endian::Big).unwrap();
+        let (remain, field0) =
+            parse_ifd_field(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[40..], Endian::Big).unwrap();
         // assert_eq!(remain, &IFD_LE[34..]);
-        assert_eq!(tag0.id, tags::IMAGE_DESCRIPTION);
-        assert_eq!(tag0.format, format::ASCII_STRING);
-        assert_eq!(tag0.components, 11);
-        assert_eq!(tag0.offset, Some(86));
-        assert_eq!(tag0.data_length(), 11);
+        assert_eq!(field0.tag, id::IMAGE_DESCRIPTION);
+        assert_eq!(field0.format, format::ASCII_STRING);
+        assert_eq!(field0.components, 11);
+        assert_eq!(field0.offset, Some(86));
+        assert_eq!(field0.data_length(), 11);
         // assert_eq!(file.data, Some(Vec::from(&JPEG_TEST_DATA[116..127])));
 
-        let (remain, tag1) =
-            parse_ifd_tag(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[52..], Endian::Big).unwrap();
+        let (remain, field1) =
+            parse_ifd_field(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[52..], Endian::Big).unwrap();
         // assert_eq!(remain, &IFD_LE[34..]);
-        assert_eq!(tag1.id, tags::X_RESOLUTION);
-        assert_eq!(tag1.format, format::UNSIGNED_RATIONAL);
-        assert_eq!(tag1.components, 1);
-        assert_eq!(tag1.offset, Some(98));
-        assert_eq!(tag1.data_length(), 8);
+        assert_eq!(field1.tag, id::X_RESOLUTION);
+        assert_eq!(field1.format, format::UNSIGNED_RATIONAL);
+        assert_eq!(field1.components, 1);
+        assert_eq!(field1.offset, Some(98));
+        assert_eq!(field1.data_length(), 8);
         // assert_eq!(file.data, Some(Vec::from(&JPEG_TEST_DATA[116..127])));
 
-        let (remain, tag2) =
-            parse_ifd_tag(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[64..], Endian::Big).unwrap();
+        let (remain, field2) =
+            parse_ifd_field(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[64..], Endian::Big).unwrap();
         // assert_eq!(remain, &IFD_LE[34..]);
-        assert_eq!(tag2.id, tags::Y_RESOLUTION);
-        assert_eq!(tag2.format, format::UNSIGNED_RATIONAL);
-        assert_eq!(tag2.components, 1);
-        assert_eq!(tag2.offset, Some(106));
-        assert_eq!(tag2.data_length(), 8);
+        assert_eq!(field2.tag, id::Y_RESOLUTION);
+        assert_eq!(field2.format, format::UNSIGNED_RATIONAL);
+        assert_eq!(field2.components, 1);
+        assert_eq!(field2.offset, Some(106));
+        assert_eq!(field2.data_length(), 8);
         // assert_eq!(file.data, Some(Vec::from(&JPEG_TEST_DATA[116..127])));
 
-        let (remain, tag3) =
-            parse_ifd_tag(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[76..], Endian::Big).unwrap();
+        let (remain, field3) =
+            parse_ifd_field(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[76..], Endian::Big).unwrap();
         // assert_eq!(remain, &IFD_LE[34..]);
-        assert_eq!(tag3.id, tags::RESOLUTION_UNIT);
-        assert_eq!(tag3.format, format::UNSIGNED_SHORT);
-        assert_eq!(tag3.components, 1);
-        assert_eq!(tag3.offset, None);
-        assert_eq!(tag3.data_length(), 2);
-        assert_eq!(tag3.data, Some(vec![0x00, 0x02, 0x00, 0x00]));
+        assert_eq!(field3.tag, id::RESOLUTION_UNIT);
+        assert_eq!(field3.format, format::UNSIGNED_SHORT);
+        assert_eq!(field3.components, 1);
+        assert_eq!(field3.offset, None);
+        assert_eq!(field3.data_length(), 2);
+        assert_eq!(field3.data, Some(vec![0x00, 0x02, 0x00, 0x00]));
 
-        let (remain, tag4) =
-            parse_ifd_tag(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[88..], Endian::Big).unwrap();
+        let (remain, field4) =
+            parse_ifd_field(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[88..], Endian::Big).unwrap();
         // assert_eq!(remain, &IFD_LE[34..]);
-        assert_eq!(tag4.id, tags::DATE_TIME);
-        assert_eq!(tag4.format, format::ASCII_STRING);
-        assert_eq!(tag4.components, 20);
-        assert_eq!(tag4.offset, Some(114));
-        assert_eq!(tag4.data_length(), 20);
+        assert_eq!(field4.tag, id::DATE_TIME);
+        assert_eq!(field4.format, format::ASCII_STRING);
+        assert_eq!(field4.components, 20);
+        assert_eq!(field4.offset, Some(114));
+        assert_eq!(field4.data_length(), 20);
         //assert_eq!(tag4.data, Some(vec![0x00, 0x02, 0x00, 0x00]));
 
-        let (remain, tag5) =
-            parse_ifd_tag(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[100..], Endian::Big).unwrap();
+        let (remain, field5) =
+            parse_ifd_field(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[100..], Endian::Big).unwrap();
         // assert_eq!(remain, &IFD_LE[34..]);
-        assert_eq!(tag5.id, tags::EXIF_IFD_OFFSET);
-        assert_eq!(tag5.format, format::UNSIGNED_LONG);
-        assert_eq!(tag5.components, 1);
-        assert_eq!(tag5.offset, None);
-        assert_eq!(tag5.data_length(), 4);
-        assert_eq!(tag5.data, Some(vec![0x00, 0x00, 0x00, 0x86]));
+        assert_eq!(field5.tag, id::EXIF_IFD_OFFSET);
+        assert_eq!(field5.format, format::UNSIGNED_LONG);
+        assert_eq!(field5.components, 1);
+        assert_eq!(field5.offset, None);
+        assert_eq!(field5.data_length(), 4);
+        assert_eq!(field5.data, Some(vec![0x00, 0x00, 0x00, 0x86]));
     }
 
     const IFD_LE: [u8; 42] = [
         /* 00-01 */ 0x49, 0x49, // alignment, little endian
         /* 02-04 */ 0x2A, 0x00, // ifd marker
         /* 05-08 */ 0x08, 0x00, 0x00, 0x00, // ifd start
-        /* 09-10 */ 0x02, 0x00, // tag count
+        /* 09-10 */ 0x02, 0x00, // field count
         /* 11-12 */ 0x1A, 0x01, // id: 0x011A, XResolution
         /* 13-14 */ 0x05, 0x00, // data format: 5, unsigned rational
         /* 15-18 */ 0x01, 0x00, 0x00, 0x00, // components: 1, so data 8 bytes
@@ -313,41 +313,41 @@ mod tests {
         /* 23-24 */ 0x69, 0x87, // id:
         /* 25-26 */ 0x04, 0x00, // data format: 4, unsigned long
         /* 27-30 */ 0x01, 0x00, 0x00, 0x00, // components: 1
-        /* 31-34 */ 0x2B, 0x00, 0x00, 0x00, // data for tag 2
-        /* 35-42 */ 0x48, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, // data for tag 1
+        /* 31-34 */ 0x2B, 0x00, 0x00, 0x00, // data for field 2
+        /* 35-42 */ 0x48, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, // data for field 1
     ];
 
     const EXIF_HEADER: [u8; 6] = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00];
 
     #[test]
-    fn test_parse_ifd_entries_little_endian() {
+    fn test_parse_ifd_fields_little_endian() {
         let (remain, ifd) = parse_ifd(&IFD_LE, &IFD_LE[4..], Endian::Little).unwrap();
         assert_eq!(remain, &IFD_LE[34..]);
 
-        let tag = &ifd.entries[0];
-        assert_eq!(tag.id, 282);
-        assert_eq!(tag.format, 5);
-        assert_eq!(tag.components, 1);
-        assert_eq!(tag.offset, Some(35));
-        assert_eq!(tag.data_length(), 8);
-        assert_eq!(tag.data, Some(Vec::from(&IFD_LE[34..])));
+        let field = &ifd.fields[0];
+        assert_eq!(field.tag, 282);
+        assert_eq!(field.format, 5);
+        assert_eq!(field.components, 1);
+        assert_eq!(field.offset, Some(35));
+        assert_eq!(field.data_length(), 8);
+        assert_eq!(field.data, Some(Vec::from(&IFD_LE[34..])));
 
-        let tag = &ifd.entries[1];
-        assert_eq!(tag.id, 34665);
-        assert_eq!(tag.format, 4);
-        assert_eq!(tag.components, 1);
-        assert_eq!(tag.offset, None);
-        assert_eq!(tag.data_length(), 4);
-        assert_eq!(tag.data, Some(Vec::from(&[0x00, 0x00, 0x00, 0x2B])));
+        let field = &ifd.fields[1];
+        assert_eq!(field.tag, 34665);
+        assert_eq!(field.format, 4);
+        assert_eq!(field.components, 1);
+        assert_eq!(field.offset, None);
+        assert_eq!(field.data_length(), 4);
+        assert_eq!(field.data, Some(Vec::from(&[0x00, 0x00, 0x00, 0x2B])));
     }
 
     #[test]
-    fn test_parse_ifd_single_tag_big_endian() {
+    fn test_parse_ifd_single_field_big_endian() {
         let data = vec![
             /* 00-01 */ 0x4D, 0x4D, // alignment, big endian
             /* 02-04 */ 0x00, 0x1A, // ifd marker
             /* 05-08 */ 0x00, 0x00, 0x00, 0x08, // ifd offset
-            /* 09-10 */ 0x00, 0x01, // ifd tag count
+            /* 09-10 */ 0x00, 0x01, // ifd field count
             /* 11-12 */ 0x01, 0x0e, // id
             /* 13-14 */ 0x00, 0x02, // data format
             /* 15-18 */ 0x00, 0x00, 0x00, 0x05, // number of components
@@ -358,21 +358,21 @@ mod tests {
         let (remain, ifd) = parse_ifd(&data, &data[4..], Endian::Big).unwrap();
         assert_eq!(remain, &data[22..]);
 
-        let tag = &ifd.entries[0];
-        assert_eq!(tag.id, 270);
-        assert_eq!(tag.format, 2);
-        assert_eq!(tag.components, 5);
-        assert_eq!(tag.data_length(), 5);
-        assert_eq!(tag.data, Some(Vec::from(&data[22..])));
+        let field = &ifd.fields[0];
+        assert_eq!(field.tag, 270);
+        assert_eq!(field.format, 2);
+        assert_eq!(field.components, 5);
+        assert_eq!(field.data_length(), 5);
+        assert_eq!(field.data, Some(Vec::from(&data[22..])));
     }
 
     #[test]
-    fn test_parse_ifd_tag_header_big_endian() {
+    fn test_parse_ifd_field_header_big_endian() {
         let data = &[
             /* 00-01 */ 0x4D, 0x4D, // alignment, big endian
             /* 02-04 */ 0x00, 0x1A, // ifd marker
             /* 05-08 */ 0x00, 0x00, 0x00, 0x08, // ifd offset
-            /* 09-10 */ 0x00, 0x01, // ifd tag count
+            /* 09-10 */ 0x00, 0x01, // ifd field count
             0x01, 0x0e, // id
             0x00, 0x02, // data format
             0x00, 0x00, 0x00, 0x05, // number of components
@@ -380,9 +380,9 @@ mod tests {
             0x00, 0x00, 0x00, 0x00, 0x01, // data
         ];
 
-        let (remain, ifd) = parse_ifd_tag(data, &data[10..], Endian::Big).unwrap();
+        let (remain, ifd) = parse_ifd_field(data, &data[10..], Endian::Big).unwrap();
         assert_eq!(remain, &data[22..]);
-        assert_eq!(ifd.id, 270);
+        assert_eq!(ifd.tag, 270);
         assert_eq!(ifd.format, 2);
         assert_eq!(ifd.components, 5);
         assert_eq!(ifd.data_length(), 5);
@@ -391,10 +391,10 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_ifd_tag_little_endian() {
-        let (remain, ifd) = parse_ifd_tag(&IFD_LE, &IFD_LE[10..], Endian::Little).unwrap();
+    fn test_parse_ifd_field_little_endian() {
+        let (remain, ifd) = parse_ifd_field(&IFD_LE, &IFD_LE[10..], Endian::Little).unwrap();
         assert_eq!(remain, &IFD_LE[22..]);
-        assert_eq!(ifd.id, 282);
+        assert_eq!(ifd.tag, 282);
         assert_eq!(ifd.format, 5);
         assert_eq!(ifd.components, 1);
         assert_eq!(ifd.data_length(), 8);
@@ -403,8 +403,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_ifd_tag_count_not_enough_data() {
-        let err = parse_ifd_tag_count(&[0xFF], Endian::Big).unwrap_err();
+    fn test_parse_ifd_field_count_not_enough_data() {
+        let err = parse_ifd_field_count(&[0xFF], Endian::Big).unwrap_err();
         assert_eq!(err.to_string(), "Exif IFD entries count invalid");
         assert_eq!(
             err.source_to_string(),
@@ -413,15 +413,15 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_ifd_tag_count_little_endian() {
-        let (remain, marker) = parse_ifd_tag_count(&[0x01, 0x00], Endian::Little).unwrap();
+    fn test_parse_ifd_field_count_little_endian() {
+        let (remain, marker) = parse_ifd_field_count(&[0x01, 0x00], Endian::Little).unwrap();
         assert_eq!(remain, &[]);
         assert_eq!(marker, 0x1);
     }
 
     #[test]
-    fn test_parse_ifd_tag_count_big_endian() {
-        let (remain, marker) = parse_ifd_tag_count(&[0x00, 0x01], Endian::Big).unwrap();
+    fn test_parse_ifd_field_count_big_endian() {
+        let (remain, marker) = parse_ifd_field_count(&[0x00, 0x01], Endian::Big).unwrap();
         assert_eq!(remain, &[]);
         assert_eq!(marker, 0x1);
     }
@@ -436,7 +436,7 @@ mod tests {
             0x00, 0x00, 0x00, 0x00, 0x01, // data
         ];
 
-        let err = parse_ifd_tag(data, data, Endian::Big).unwrap_err();
+        let err = parse_ifd_field(data, data, Endian::Big).unwrap_err();
         assert_eq!(err.to_string(), "Exif IFD offset failed: is negative");
     }
 

@@ -1,4 +1,4 @@
-// IFD file data format
+// IFD field data format
 pub(crate) mod format {
     pub(crate) const UNSIGNED_BYTE: u16 = 0x01; // 1 byte per component
     pub(crate) const ASCII_STRING: u16 = 0x02; // 1 byte per component
@@ -16,18 +16,18 @@ pub(crate) mod format {
 
 /// Represents an IFD tag in cluding its identifier, format, number of components, and data.
 #[derive(Debug, Clone)]
-pub(crate) struct IfdTag {
-    pub(crate) id: u16,               // tag identifier
+pub(crate) struct IfdField {
+    pub(crate) tag: u16,              // identifier
     pub(crate) format: u16,           // data format
     pub(crate) components: u32,       // number of components
     pub(crate) offset: Option<u32>,   // offset to data
     pub(crate) data: Option<Vec<u8>>, // actual data
 }
 
-impl Default for IfdTag {
+impl Default for IfdField {
     fn default() -> Self {
         Self {
-            id: 0,
+            tag: 0,
             format: 0,
             components: 0,
             offset: None,
@@ -36,11 +36,11 @@ impl Default for IfdTag {
     }
 }
 
-impl IfdTag {
+impl IfdField {
     // Create a new IFD tag
-    pub(crate) fn new(id: u16, format: u16, components: u32) -> Self {
+    pub(crate) fn new(tag: u16, format: u16, components: u32) -> Self {
         Self {
-            id,
+            tag,
             format,
             components,
             offset: None,
@@ -74,20 +74,29 @@ mod tests {
 
     #[test]
     fn test_tag_data_length() {
-        assert_eq!(IfdTag::new(0, format::UNSIGNED_BYTE, 10).data_length(), 10);
-        assert_eq!(IfdTag::new(0, format::ASCII_STRING, 10).data_length(), 10);
-        assert_eq!(IfdTag::new(0, format::UNSIGNED_SHORT, 10).data_length(), 20);
-        assert_eq!(IfdTag::new(0, format::UNSIGNED_LONG, 10).data_length(), 40);
         assert_eq!(
-            IfdTag::new(0, format::UNSIGNED_RATIONAL, 10).data_length(),
+            IfdField::new(0, format::UNSIGNED_BYTE, 10).data_length(),
+            10
+        );
+        assert_eq!(IfdField::new(0, format::ASCII_STRING, 10).data_length(), 10);
+        assert_eq!(
+            IfdField::new(0, format::UNSIGNED_SHORT, 10).data_length(),
+            20
+        );
+        assert_eq!(
+            IfdField::new(0, format::UNSIGNED_LONG, 10).data_length(),
+            40
+        );
+        assert_eq!(
+            IfdField::new(0, format::UNSIGNED_RATIONAL, 10).data_length(),
             80
         );
-        assert_eq!(IfdTag::new(0, format::SIGNED_BYTE, 10).data_length(), 10);
-        assert_eq!(IfdTag::new(0, format::UNDEFINED, 10).data_length(), 10);
-        assert_eq!(IfdTag::new(0, format::SIGNED_SHORT, 10).data_length(), 20);
-        assert_eq!(IfdTag::new(0, format::SIGNED_LONG, 10).data_length(), 40);
+        assert_eq!(IfdField::new(0, format::SIGNED_BYTE, 10).data_length(), 10);
+        assert_eq!(IfdField::new(0, format::UNDEFINED, 10).data_length(), 10);
+        assert_eq!(IfdField::new(0, format::SIGNED_SHORT, 10).data_length(), 20);
+        assert_eq!(IfdField::new(0, format::SIGNED_LONG, 10).data_length(), 40);
         assert_eq!(
-            IfdTag::new(0, format::SIGNED_RATIONAL, 10).data_length(),
+            IfdField::new(0, format::SIGNED_RATIONAL, 10).data_length(),
             80
         );
     }
