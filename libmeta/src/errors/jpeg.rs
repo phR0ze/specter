@@ -50,6 +50,7 @@ impl JpegError {
         self.data = Some(data.into());
         self
     }
+
     /// Add optional error message detail for output with the standard error messsage for this kind
     pub(crate) fn with_msg<T: AsRef<str>>(mut self, msg: T) -> Self {
         self.msg = Some(msg.as_ref().into());

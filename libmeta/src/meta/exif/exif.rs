@@ -3,28 +3,11 @@ use core::panic;
 use nom::bytes::streaming as nom_bytes;
 use nom::number::streaming as nom_nums;
 
-use super::{tag, Ifd, IfdField, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN};
+use super::{tag, Endian, Ifd, IfdField, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN};
 use crate::errors::ExifError;
 
 /// Simplify the Exif return type slightly
 pub type ExifResult<T> = Result<T, ExifError>;
-
-/// Track the endianness of the TIFF data
-#[derive(Debug, Clone, PartialEq, Copy)]
-enum Endian {
-    Big,
-    Little,
-}
-
-impl From<[u8; 2]> for Endian {
-    fn from(data: [u8; 2]) -> Self {
-        match data {
-            BIG_ENDIAN => Endian::Big,
-            LITTLE_ENDIAN => Endian::Little,
-            _ => panic!("Invalid TIFF alignment"),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct Exif {}
@@ -161,8 +144,8 @@ fn parse_ifd_field<'a>(
     let (remain, data, offset) = parse_ifd_data_or_offset(remain, endian)?;
 
     // create the ifd field and calculate if there is an offset to extract data from
-    let mut field = IfdField::new(tag, format, components);
-    if field.data_length() > 4 {
+    let mut field = IfdField::new(endian, tag, format, components);
+    if field.length() > 4 {
         let remain = remain; // save the current position by creating a new variable
 
         // skip to the offset location
@@ -179,10 +162,9 @@ fn parse_ifd_field<'a>(
         };
 
         // read the data from the offset location
-        let (_, data) = nom_bytes::take(field.data_length())(remain)
+        let (_, data) = nom_bytes::take(field.length())(remain)
             .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
 
-        // Update the field with the correct offset and data
         field.offset = Some(offset);
         field.data = Some(data.to_vec());
     } else {
@@ -252,6 +234,7 @@ mod tests {
         assert_eq!(field0.components, 1);
         assert_eq!(field0.offset, None);
         assert_eq!(field0.data, Some(vec![0x00, 0x00, 0x00, 0xce]));
+        assert_eq!(field0.to_unsigned(), Some(206));
 
         let field1 = &ifd1.fields[1];
         assert_eq!(field1.tag, tag::JPEG_THUMBNAIL_LENGTH);
@@ -259,6 +242,7 @@ mod tests {
         assert_eq!(field1.components, 1);
         assert_eq!(field1.offset, None);
         assert_eq!(field1.data, Some(vec![0x00, 0x00, 0x02, 0x88]));
+        assert_eq!(field1.to_unsigned(), Some(648));
     }
 
     #[test]
@@ -266,76 +250,88 @@ mod tests {
         let (remain, ifd0) = parse_ifd(&EXIF_TEST_DATA, &EXIF_TEST_DATA[8..], Endian::Big).unwrap();
 
         let field0 = &ifd0.fields[0];
+        assert_eq!(field0.endian, Endian::Big);
         assert_eq!(field0.tag, tag::IMAGE_DESCRIPTION);
         assert_eq!(field0.format, format::ASCII_STRING);
         assert_eq!(field0.components, 11);
+        assert_eq!(field0.length(), 11);
         assert_eq!(field0.offset, Some(86));
-        assert_eq!(field0.data_length(), 11);
         let offset = field0.offset.unwrap() as usize;
         assert_eq!(
             field0.data,
             Some(Vec::from(
-                &EXIF_TEST_DATA[offset..offset + field0.data_length() as usize]
+                &EXIF_TEST_DATA[offset..offset + field0.length() as usize]
             ))
         );
+        assert_eq!(field0.to_ascii(), Some("Test image".into()));
 
         let field1 = &ifd0.fields[1];
+        assert_eq!(field1.endian, Endian::Big);
         assert_eq!(field1.tag, tag::X_RESOLUTION);
         assert_eq!(field1.format, format::UNSIGNED_RATIONAL);
         assert_eq!(field1.components, 1);
+        assert_eq!(field1.length(), 8);
         assert_eq!(field1.offset, Some(98));
         let offset = field1.offset.unwrap() as usize;
-        assert_eq!(field1.data_length(), 8);
         assert_eq!(
             field1.data,
             Some(Vec::from(
-                &EXIF_TEST_DATA[offset..offset + field1.data_length() as usize]
+                &EXIF_TEST_DATA[offset..offset + field1.length() as usize]
             ))
         );
+        assert_eq!(field1.to_rational(), Some((72, 1)));
 
         let field2 = &ifd0.fields[2];
+        assert_eq!(field2.endian, Endian::Big);
         assert_eq!(field2.tag, tag::Y_RESOLUTION);
         assert_eq!(field2.format, format::UNSIGNED_RATIONAL);
         assert_eq!(field2.components, 1);
         assert_eq!(field2.offset, Some(106));
         let offset = field2.offset.unwrap() as usize;
-        assert_eq!(field2.data_length(), 8);
+        assert_eq!(field2.length(), 8);
         assert_eq!(
             field2.data,
             Some(Vec::from(
-                &EXIF_TEST_DATA[offset..offset + field2.data_length() as usize]
+                &EXIF_TEST_DATA[offset..offset + field2.length() as usize]
             ))
         );
+        assert_eq!(field2.to_rational(), Some((72, 1)));
 
         let field3 = &ifd0.fields[3];
+        assert_eq!(field3.endian, Endian::Big);
         assert_eq!(field3.tag, tag::RESOLUTION_UNIT);
         assert_eq!(field3.format, format::UNSIGNED_SHORT);
         assert_eq!(field3.components, 1);
         assert_eq!(field3.offset, None);
-        assert_eq!(field3.data_length(), 2);
+        assert_eq!(field3.length(), 2);
         assert_eq!(field3.data, Some(vec![0x00, 0x02, 0x00, 0x00]));
+        assert_eq!(field3.to_unsigned(), Some(2));
 
         let field4 = &ifd0.fields[4];
+        assert_eq!(field4.endian, Endian::Big);
         assert_eq!(field4.tag, tag::DATE_TIME);
         assert_eq!(field4.format, format::ASCII_STRING);
         assert_eq!(field4.components, 20);
         assert_eq!(field4.offset, Some(114));
-        assert_eq!(field4.data_length(), 20);
+        assert_eq!(field4.length(), 20);
         let offset = field4.offset.unwrap() as usize;
         assert_eq!(
             field4.data,
             Some(Vec::from(
-                &EXIF_TEST_DATA[offset..offset + field4.data_length() as usize]
+                &EXIF_TEST_DATA[offset..offset + field4.length() as usize]
             ))
         );
+        assert_eq!(field4.to_ascii(), Some("2016:05:04 03:02:01".into()));
 
         let field5 = &ifd0.fields[5];
+        assert_eq!(field5.endian, Endian::Big);
         assert_eq!(field5.tag, tag::EXIF_IFD_OFFSET);
         assert_eq!(field5.format, format::UNSIGNED_LONG);
         assert_eq!(field5.components, 1);
         assert_eq!(field5.offset, None);
-        assert_eq!(field5.data_length(), 4);
+        assert_eq!(field5.length(), 4);
         assert_eq!(field5.data, Some(vec![0x00, 0x00, 0x00, 0x86]));
+        assert_eq!(field5.to_unsigned(), Some(134));
     }
 
     const IFD_LE: [u8; 42] = [
@@ -366,7 +362,7 @@ mod tests {
         assert_eq!(field.format, 5);
         assert_eq!(field.components, 1);
         assert_eq!(field.offset, Some(34));
-        assert_eq!(field.data_length(), 8);
+        assert_eq!(field.length(), 8);
         assert_eq!(field.data, Some(Vec::from(&IFD_LE[34..])));
 
         let field = &ifd.fields[1];
@@ -374,7 +370,7 @@ mod tests {
         assert_eq!(field.format, 4);
         assert_eq!(field.components, 1);
         assert_eq!(field.offset, None);
-        assert_eq!(field.data_length(), 4);
+        assert_eq!(field.length(), 4);
         assert_eq!(field.data, Some(Vec::from(&[0x00, 0x00, 0x00, 0x2B])));
     }
 
@@ -399,7 +395,7 @@ mod tests {
         assert_eq!(field.tag, 270);
         assert_eq!(field.format, 2);
         assert_eq!(field.components, 5);
-        assert_eq!(field.data_length(), 5);
+        assert_eq!(field.length(), 5);
         assert_eq!(field.data, Some(Vec::from(&data[22..])));
     }
 
@@ -422,7 +418,7 @@ mod tests {
         assert_eq!(ifd.tag, 270);
         assert_eq!(ifd.format, 2);
         assert_eq!(ifd.components, 5);
-        assert_eq!(ifd.data_length(), 5);
+        assert_eq!(ifd.length(), 5);
         assert_eq!(ifd.offset, Some(22));
         assert_eq!(ifd.data, Some(data[22..].to_vec()));
     }
@@ -434,7 +430,7 @@ mod tests {
         assert_eq!(ifd.tag, 282);
         assert_eq!(ifd.format, 5);
         assert_eq!(ifd.components, 1);
-        assert_eq!(ifd.data_length(), 8);
+        assert_eq!(ifd.length(), 8);
         assert_eq!(ifd.offset, Some(34));
         assert_eq!(ifd.data, Some(IFD_LE[34..].to_vec()));
     }
@@ -634,8 +630,8 @@ pub(crate) const EXIF_TEST_DATA: [u8; 854] = [
     /* 130-133 */ 0x3a, 0x30, 0x31, 0x00, //
     //
     // EXIF IFD
-    /* 134-137 */ 0x00, 0x03, 0x90, 0x00, //
-    //
+    /* 134-135 */ 0x00, 0x03, // EXIF IFD: field count
+    /* 136-137 */ 0x90, 0x00, // Field 0: Exif Version
     /* 138-147 */ 0x00, 0x07, 0x00, 0x00, 0x00, 0x04, 0x30, 0x32, 0x33, 0x30, //
     /* 148-157 */ 0xa0, 0x02, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x0f, //
     /* 158-167 */ 0x00, 0x00, 0xa0, 0x03, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, //

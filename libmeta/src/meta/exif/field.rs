@@ -1,8 +1,9 @@
-use super::format;
+use super::{format, tag, Endian};
 
 /// Represents an IFD tag in cluding its identifier, format, number of components, and data.
 #[derive(Debug, Clone)]
 pub(crate) struct IfdField {
+    pub(crate) endian: Endian,        // byte order
     pub(crate) tag: u16,              // identifier
     pub(crate) format: u16,           // data format
     pub(crate) components: u32,       // number of components
@@ -10,22 +11,11 @@ pub(crate) struct IfdField {
     pub(crate) data: Option<Vec<u8>>, // actual data
 }
 
-impl Default for IfdField {
-    fn default() -> Self {
-        Self {
-            tag: 0,
-            format: 0,
-            components: 0,
-            offset: None,
-            data: None,
-        }
-    }
-}
-
 impl IfdField {
     // Create a new IFD tag
-    pub(crate) fn new(tag: u16, format: u16, components: u32) -> Self {
+    pub(crate) fn new(endian: Endian, tag: u16, format: u16, components: u32) -> Self {
         Self {
+            endian,
             tag,
             format,
             components,
@@ -34,8 +24,14 @@ impl IfdField {
         }
     }
 
+    /// Add additional error data for output with the error message
+    pub(crate) fn with_data(mut self, data: &[u8]) -> Self {
+        self.data = Some(data.into());
+        self
+    }
+
     // Calculate the length of the tag's data in number of bytes
-    pub(crate) fn data_length(&self) -> u64 {
+    pub(crate) fn length(&self) -> u64 {
         match self.format {
             format::UNSIGNED_BYTE => self.components as u64,
             format::ASCII_STRING => self.components as u64,
@@ -52,6 +48,82 @@ impl IfdField {
             _ => 0,
         }
     }
+    /// Convert the data to an ASCII string
+    pub(crate) fn to_ascii(&self) -> Option<String> {
+        match self.data {
+            Some(ref data) => {
+                let mut ascii = String::new();
+                for &byte in data.iter() {
+                    if byte == 0 {
+                        break;
+                    }
+                    ascii.push(byte as char);
+                }
+                Some(ascii)
+            }
+            None => None,
+        }
+    }
+
+    /// Convert the data to a rational number
+    pub(crate) fn to_rational(&self) -> Option<(usize, usize)> {
+        if self.length() != 8 {
+            return None;
+        }
+
+        match self.data {
+            Some(ref data) => data[0..4].try_into().ok().and_then(|num| {
+                data[4..8].try_into().ok().map(|den| {
+                    if self.endian == Endian::Little {
+                        (
+                            u32::from_le_bytes(num) as usize,
+                            u32::from_le_bytes(den) as usize,
+                        )
+                    } else {
+                        (
+                            u32::from_be_bytes(num) as usize,
+                            u32::from_be_bytes(den) as usize,
+                        )
+                    }
+                })
+            }),
+            None => None,
+        }
+    }
+
+    /// Convert the data to an unsigned integer
+    pub(crate) fn to_unsigned(&self) -> Option<usize> {
+        match self.data {
+            Some(ref data) => match self.format {
+                format::UNSIGNED_BYTE => match data.len() {
+                    1.. => Some(data[0] as usize),
+                    _ => None,
+                },
+                format::UNSIGNED_SHORT => match data.len() {
+                    2.. => {
+                        if self.endian == Endian::Little {
+                            Some(u16::from_le_bytes(data[0..2].try_into().unwrap()) as usize)
+                        } else {
+                            Some(u16::from_be_bytes(data[0..2].try_into().unwrap()) as usize)
+                        }
+                    }
+                    _ => None,
+                },
+                format::UNSIGNED_LONG => match data.len() {
+                    4.. => {
+                        if self.endian == Endian::Little {
+                            Some(u32::from_le_bytes(data[0..4].try_into().unwrap()) as usize)
+                        } else {
+                            Some(u32::from_be_bytes(data[0..4].try_into().unwrap()) as usize)
+                        }
+                    }
+                    _ => None,
+                },
+                _ => None,
+            },
+            None => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -59,30 +131,79 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_data_to_unsigned() {
+        assert_eq!(
+            IfdField::new(Endian::Big, tag::RESOLUTION_UNIT, format::UNSIGNED_SHORT, 1)
+                .with_data(&[0x00, 0x02, 0x00, 0x00,])
+                .to_unsigned(),
+            Some(2)
+        );
+    }
+    #[test]
+    fn test_data_to_rational() {
+        assert_eq!(
+            IfdField::new(Endian::Big, tag::X_RESOLUTION, format::UNSIGNED_RATIONAL, 1)
+                .with_data(&[0x00, 0x00, 0x00, 0x48, 0x00, 0x00, 0x00, 0x01,])
+                .to_rational(),
+            Some((72, 1))
+        );
+    }
+
+    #[test]
+    fn test_data_to_ascii() {
+        assert_eq!(
+            IfdField::new(
+                Endian::Big,
+                tag::IMAGE_DESCRIPTION,
+                format::ASCII_STRING,
+                11
+            )
+            .with_data(&[0x54, 0x65, 0x73, 0x74, 0x20, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x00, 0x46,])
+            .to_ascii(),
+            Some("Test image".into())
+        );
+    }
+
+    #[test]
     fn test_tag_data_length() {
         assert_eq!(
-            IfdField::new(0, format::UNSIGNED_BYTE, 10).data_length(),
+            IfdField::new(Endian::Big, 0, format::UNSIGNED_BYTE, 10).length(),
             10
         );
-        assert_eq!(IfdField::new(0, format::ASCII_STRING, 10).data_length(), 10);
         assert_eq!(
-            IfdField::new(0, format::UNSIGNED_SHORT, 10).data_length(),
+            IfdField::new(Endian::Big, 0, format::ASCII_STRING, 10).length(),
+            10
+        );
+        assert_eq!(
+            IfdField::new(Endian::Big, 0, format::UNSIGNED_SHORT, 10).length(),
             20
         );
         assert_eq!(
-            IfdField::new(0, format::UNSIGNED_LONG, 10).data_length(),
+            IfdField::new(Endian::Big, 0, format::UNSIGNED_LONG, 10).length(),
             40
         );
         assert_eq!(
-            IfdField::new(0, format::UNSIGNED_RATIONAL, 10).data_length(),
+            IfdField::new(Endian::Big, 0, format::UNSIGNED_RATIONAL, 10).length(),
             80
         );
-        assert_eq!(IfdField::new(0, format::SIGNED_BYTE, 10).data_length(), 10);
-        assert_eq!(IfdField::new(0, format::UNDEFINED, 10).data_length(), 10);
-        assert_eq!(IfdField::new(0, format::SIGNED_SHORT, 10).data_length(), 20);
-        assert_eq!(IfdField::new(0, format::SIGNED_LONG, 10).data_length(), 40);
         assert_eq!(
-            IfdField::new(0, format::SIGNED_RATIONAL, 10).data_length(),
+            IfdField::new(Endian::Big, 0, format::SIGNED_BYTE, 10).length(),
+            10
+        );
+        assert_eq!(
+            IfdField::new(Endian::Big, 0, format::UNDEFINED, 10).length(),
+            10
+        );
+        assert_eq!(
+            IfdField::new(Endian::Big, 0, format::SIGNED_SHORT, 10).length(),
+            20
+        );
+        assert_eq!(
+            IfdField::new(Endian::Big, 0, format::SIGNED_LONG, 10).length(),
+            40
+        );
+        assert_eq!(
+            IfdField::new(Endian::Big, 0, format::SIGNED_RATIONAL, 10).length(),
             80
         );
     }
