@@ -1,7 +1,7 @@
 use std::error::Error;
 
-mod cast;
 mod context;
+mod data;
 mod exif;
 mod filetype;
 mod jfif;
@@ -9,9 +9,9 @@ mod jpeg;
 mod meta;
 
 // Export all error types together
-pub use cast::*;
 pub use context::*;
 pub use core::*;
+pub use data::*;
 pub use exif::*;
 pub use filetype::*;
 pub use jfif::*;

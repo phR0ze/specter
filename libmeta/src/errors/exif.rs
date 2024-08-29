@@ -23,6 +23,10 @@ impl ExifError {
         ExifError::new(ExifErrorKind::IdentifierInvalid)
     }
 
+    pub fn version_invalid() -> Self {
+        ExifError::new(ExifErrorKind::VersionInvalid)
+    }
+
     pub fn endian_invalid() -> Self {
         ExifError::new(ExifErrorKind::AlignmentInvalid)
     }
@@ -88,6 +92,7 @@ impl fmt::Display for ExifError {
         match &self.kind {
             ExifErrorKind::IdentifierInvalid => write!(f, "Exif identifier invalid")?,
             ExifErrorKind::AlignmentInvalid => write!(f, "Exif TIFF alignment invalid")?,
+            ExifErrorKind::VersionInvalid => write!(f, "Exif TIFF version invalid")?,
             ExifErrorKind::FieldCountInvalid => write!(f, "Exif IFD field count invalid")?,
             ExifErrorKind::OffsetFailed => write!(f, "Exif IFD offset failed")?,
             ExifErrorKind::FieldFailed => write!(f, "Exif IFD field failed")?,
@@ -137,6 +142,7 @@ pub enum ExifErrorDataKind {
 pub enum ExifErrorKind {
     IdentifierInvalid,
     AlignmentInvalid,
+    VersionInvalid,
     FieldCountInvalid,
     OffsetFailed,
     FieldFailed,

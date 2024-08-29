@@ -9,7 +9,7 @@ use super::{ContextError, JpegError};
 pub struct MetaError {
     pub data: Box<[u8]>,
     pub kind: MetaErrorKind,
-    pub source: Option<MetaErrorSource>,
+    source: Option<MetaErrorSource>,
 }
 
 impl MetaError {

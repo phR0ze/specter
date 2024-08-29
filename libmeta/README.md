@@ -83,6 +83,7 @@ The Exif tag structure is borrowed from the TIFF format.
 * [Exiftool tag names](https://exiftool.org/TagNames/EXIF.html)
 * [Exif 2.32 spec](https://web.archive.org/web/20190624045241if_/http://www.cipa.jp:80/std/documents/e/DC-008-Translation-2019-E.pdf)
 * [Exiftool industry standard](https://exiftool.org/)
+* [Sample jpegs to validate against](https://github.com/cdcseacave/TinyEXIF/tree/master/Samples)
 
 ### Tags
 
@@ -338,7 +339,10 @@ defined with the tag `0xA005`.
 #### TIFF Structure
 TIFF files are organized into three sections: the Image File Header (IFH), the Image File Directory 
 (IFD) and the bitmap data. Only the IFH and IFD are required. TIFF files can contain multiple images. 
-There is no limit on the number if IFDs in a TIFF.
+There is no limit on the number if IFDs in a TIFF. TIFF IFD and bitmap data can be arranged how ever 
+the implementer sees fit as long as the correct offsets are in place to locate the data.
+
+Note: TIFF IFDs are not part of the TIFF header.
 
 #### TIFF header
 First 8 bytes make up the header
@@ -346,7 +350,7 @@ First 8 bytes make up the header
 | Field         | Size | Description
 | ------------- | ---- | ------------------------------------------
 | `4D4D`        | 2    | Alignment of `4949` i.e. `II` or Intel is Little-Endian, `4D4D` i.e. `MM` or Motorola is Big-Endian
-| `002A`        | 2    | TIFF identifier `0024` or `2400` depending on endian
+| `002A`        | 2    | TIFF version, but always `0024` or `2400` depending on endian
 | `00000008`    | 4    | Offset from the start of the TIFF to the first IFD
 
 #### TIFF IFD structure
@@ -358,4 +362,4 @@ contain at least one IFD.
 | ------------- | ---- | ------------------------------------------
 | `LLLL`        | 2    | Number of entries in the IFD
 | `XX...XX`     | 12n  | 12 bytes per entry for all entries
-| `00000008`    | 4    | Offset to the next IFD or zero if no more `00000000`
+| `00000008`    | 4    | Last 4 bytes of every IFD is the offset to the next IFD or zero if no more `00000000`

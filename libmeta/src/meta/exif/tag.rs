@@ -5,7 +5,7 @@ pub(crate) const IMAGE_HEIGHT: u16 = 0x0101;
 pub(crate) const BITS_PER_SAMPLE: u16 = 0x0102;
 
 /// Compression scheme used on the image data.
-/// * 1 = Uncompressed
+/// * 1 = Uncompressed, 6 = JPEG compression (thumbnails or preview images)
 pub(crate) const COMPRESSION: u16 = 0x0103;
 
 /// * 2 = RGB
@@ -73,6 +73,20 @@ pub(crate) const WHITE_POINT: u16 = 0x013E;
 /// * **Components**: 6
 pub(crate) const PRIMARY_CHROMATICITIES: u16 = 0x013F;
 
+/// JPEG Thumbnail offset
+/// * Data format is ordinary JPEG starting from 0xFFD8 and ending by 0xFFD9
+/// * Typically the recommended thumbnail size is 160x120 for Exif 2.1 or later
+/// * **Format**: Unsigned long
+/// * **Components**: 1
+pub(crate) const JPEG_THUMBNAIL_OFFSET: u16 = 0x0201;
+
+/// JPEG Thumbnail length in bytes
+/// * Data format is ordinary JPEG starting from 0xFFD8 and ending by 0xFFD9
+/// * Typically the recommended thumbnail size is 160x120 for Exif 2.1 or later
+/// * **Format**: Unsigned long
+/// * **Components**: 1
+pub(crate) const JPEG_THUMBNAIL_LENGTH: u16 = 0x0202;
+
 /// When image format is YCbCr, this value shows a constant to translate it to RGB format. In usual, values are '0.299/0.587/0.114'.
 /// * **Format**: Unsigned rational
 /// * **Components**: 3
@@ -101,6 +115,11 @@ pub(crate) const EXIF_IFD_OFFSET: u16 = 0x8769;
 /// Converts a tag to human understandable descriptive string
 pub(crate) fn to_string(tag: u16) -> &'static str {
     match tag {
+        IMAGE_WIDTH => "Image Width",
+        IMAGE_HEIGHT => "Image Height",
+        BITS_PER_SAMPLE => "Bits Per Sample",
+        COMPRESSION => "Compression",
+        PHOTOMETRIC_INTERPRETATION => "Photometric Interpretation",
         IMAGE_DESCRIPTION => "Image Description",
         MAKE => "Make",
         MODEL => "Model",
@@ -111,6 +130,8 @@ pub(crate) fn to_string(tag: u16) -> &'static str {
         SOFTWARE => "Software",
         DATE_TIME => "Date Time",
         WHITE_POINT => "White Point",
+        JPEG_THUMBNAIL_OFFSET => "JPEG Thumbnail Offset",
+        JPEG_THUMBNAIL_LENGTH => "JPEG Thumbnail Length",
         PRIMARY_CHROMATICITIES => "Primary Chromaticities",
         Y_CB_CR_COEFFICIENTS => "Y Cb Cr Coefficients",
         Y_CB_CR_POSITIONING => "Y Cb Cr Positioning",

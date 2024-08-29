@@ -59,7 +59,7 @@ fn first_level_error() -> Result<(), JpegError> {
     )(&[0x00])
     {
         Ok((_, _)) => Ok(()),
-        Err(e) => Err(JpegError::segment_marker_invalid().with_nom_source(e)),
+        Err(e) => Err(JpegError::parse(": segment marker unknown").with_nom_source(e)),
     }
 }
 

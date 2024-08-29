@@ -1,7 +1,8 @@
 mod exif;
 mod field;
-mod id;
+mod format;
 mod ifd;
+mod tag;
 
 // Surface module directly
 

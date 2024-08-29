@@ -2,7 +2,7 @@ use std::io::{self, Read};
 
 use super::{exif::Exif, jfif::Jfif, Kind};
 use crate::{
-    errors::{CastError, MetaError},
+    errors::{DataError, MetaError},
     formats::jpeg,
 };
 
