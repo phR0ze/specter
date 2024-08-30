@@ -14,7 +14,7 @@ fn main() -> anyhow::Result<()> {
 
     // Open the file
     let f = File::open(Path::new(args[1].as_str()))?;
-    jpeg::dump(f)?;
+    jpeg::dump_segments(f)?;
 
     Ok(())
 }

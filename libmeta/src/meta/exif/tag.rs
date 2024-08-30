@@ -1,9 +1,12 @@
 use std::f32::consts::E;
 
+/// Image width
 pub(crate) const IMAGE_WIDTH: u16 = 0x0100;
 
+/// Image height
 pub(crate) const IMAGE_HEIGHT: u16 = 0x0101;
 
+/// Number of bits per sample
 pub(crate) const BITS_PER_SAMPLE: u16 = 0x0102;
 
 /// Compression scheme used on the image data.
@@ -123,7 +126,7 @@ pub(crate) const F_NUMBER: u16 = 0x829D;
 /// Shows Exif IFD offset. The value of this tag is the byte offset from the start of the TIFF header to the Exif IFD.
 /// * **Format**: Unsigned long
 /// * **Components**: 1
-pub(crate) const EXIF_IFD_OFFSET: u16 = 0x8769;
+pub(crate) const EXIF_SUB_IFD_OFFSET: u16 = 0x8769;
 
 /// Exposure program that the camera used when image was taken.
 /// * 0 = not defined, 1 = manual, 2 = normal program, 3 = aperture priority, 4 = shutter priority,
@@ -325,7 +328,7 @@ pub(crate) fn to_string(tag: u16) -> &'static str {
         COPYRIGHT => "Copyright",
         EXPOSURE_TIME => "Exposure Time",
         F_NUMBER => "F Number",
-        EXIF_IFD_OFFSET => "Exif Offset",
+        EXIF_SUB_IFD_OFFSET => "Exif Offset",
         EXPOSURE_PROGRAM => "Exposure Program",
         ISO_SPEED_RATINGS => "ISO Speed Ratings",
         EXIF_VERSION => "Exif Version",

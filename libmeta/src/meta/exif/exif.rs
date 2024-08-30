@@ -1,7 +1,7 @@
 use core::panic;
 
-use nom::bytes::streaming as nom_bytes;
 use nom::number::streaming as nom_nums;
+use nom::{bytes::streaming as nom_bytes, Err};
 
 use super::{tag, Endian, Ifd, IfdField, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN};
 use crate::errors::ExifError;
@@ -34,75 +34,61 @@ pub fn parse(input: &[u8]) -> ExifResult<Exif> {
     // Parse TIFF version
     let (remain, marker) = parse_tiff_version(remain, endian)?;
     if marker != 0x24 {
-        return Err(ExifError::identifier_invalid());
+        return Err(ExifError::parse(": TIFF version invalid").with_data(&marker.to_be_bytes()));
     }
-
-    // Parser offset to the first IFD
-    let (remain, _, offset) = parse_ifd_data_or_offset(remain, endian)?;
-    let (remain, _) = nom_bytes::take(offset as usize - (input.len() - remain.len()))(remain)
-        .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
 
     Ok(exif)
 }
 
-/// Parse the Exif header: 6 bytes `4578 6966 0000` => `Exif` and 2 bytes of padding 0000
-fn parse_exif_header(input: &[u8]) -> ExifResult<(&[u8], [u8; 4])> {
-    nom::sequence::terminated(
-        nom::bytes::streaming::tag::<[u8; 4], &[u8], nom::error::Error<&[u8]>>(EXIF_IDENTIFIER),
-        nom::bytes::streaming::tag::<[u8; 2], &[u8], nom::error::Error<&[u8]>>([0x00, 0x00]),
-    )(input)
-    .map(|(remain, x)| (remain, x.try_into().unwrap()))
-    .map_err(|x| ExifError::identifier_invalid().with_nom_source(x))
-}
+/// Parse IFDs
+/// * **input** is the full data source from tiff header alignment
+/// * **remain** starts with the ifd offset
+fn parse_ifds<'a>(
+    input: &'a [u8],
+    remain: &'a [u8],
+    endian: Endian,
+) -> ExifResult<(&'a [u8], Vec<Ifd>)> {
+    let mut ifds: Vec<Ifd> = Vec::new();
 
-/// (2 bytes) Parse the TIFF header byte alignment
-fn parse_tiff_endian(input: &[u8]) -> ExifResult<(&[u8], Endian)> {
-    let (remain, alignment) = nom::branch::alt((
-        nom::bytes::streaming::tag::<[u8; 2], &[u8], nom::error::Error<&[u8]>>(BIG_ENDIAN),
-        nom::bytes::streaming::tag::<[u8; 2], &[u8], nom::error::Error<&[u8]>>(LITTLE_ENDIAN),
-    ))(input)
-    .map_err(|x| ExifError::endian_invalid().with_nom_source(x))?;
+    loop {
+        let (remain, _, offset) = parse_ifd_data_or_offset(remain, endian)?;
 
-    // Convert to endian, has to be a valid value per nom above
-    let array: [u8; 2] = alignment.try_into().unwrap();
-    let endian: Endian = array.into();
+        // Offset of zero means we've hit the end of our IFDs
+        if offset == 0 {
+            break;
+        }
 
-    Ok((remain, endian))
-}
+        // Skip to the offset location
+        let (remain, _) = nom_bytes::take(offset as usize - (input.len() - remain.len()))(remain)
+            .map_err(|x| ExifError::parse(": Offset to IFD").with_nom_source(x))?;
 
-/// (2 bytes) Parse the TIFF IFD 0 marker, always 2A00 or 0024
-fn parse_tiff_version(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u16)> {
-    match endian {
-        Endian::Big => nom::number::streaming::be_u16(input),
-        Endian::Little => nom::number::streaming::le_u16(input),
-    }
-    .map_err(|x| ExifError::version_invalid().with_nom_source(x))
-}
+        // Parse the IFD
+        let (remain, ifd) = parse_ifd(remain, remain, endian)?;
 
-/// Parse out a 4 byte values as either raw data bytes in big endian or an offset
-/// Returns: (remaining bytes, data bytes, offset)
-fn parse_ifd_data_or_offset(input: &[u8], endian: Endian) -> ExifResult<(&[u8], [u8; 4], u32)> {
-    let (remain, offset) = match endian {
-        Endian::Big => nom_nums::be_u32(input),
-        Endian::Little => nom_nums::le_u32(input),
-    }
-    .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
-
-    // Validate the offset
-    if offset == 0 {
-        return Err(ExifError::offset_failed().with_msg("is zero"));
+        ifds.push(ifd);
     }
 
-    Ok((remain, offset.to_be_bytes(), offset))
+    Ok((remain, ifds))
 }
 
-/// (2 bytes) Parse number of entries in the IFD
-fn parse_ifd_field_count(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u16)> {
-    match endian {
-        Endian::Big => nom_nums::be_u16(input),
-        Endian::Little => nom_nums::le_u16(input),
+/// Parse IFD
+/// * **input** is the full data source from tiff header alignment
+/// * **remain** starts with the ifd field count
+fn parse_ifd<'a>(input: &'a [u8], remain: &'a [u8], endian: Endian) -> ExifResult<(&'a [u8], Ifd)> {
+    let mut ifd = Ifd::default();
+
+    // Parse out the number of IFD fields to expect
+    let (remain, count) = parse_ifd_field_count(remain, endian)?;
+
+    // Parse out each of the IFD fields
+    let mut remain = remain;
+    for _ in 0..count {
+        let (r, f) = parse_ifd_field(input, remain, endian)?;
+        remain = r;
+        ifd.fields.push(f);
     }
-    .map_err(|x| ExifError::count_invalid().with_nom_source(x))
+
+    Ok((remain, ifd))
 }
 
 /// Parse IFD field which is 12 bytes of header an arbitrary data component
@@ -119,51 +105,51 @@ fn parse_ifd_field<'a>(
     remain: &'a [u8],
     endian: Endian,
 ) -> ExifResult<(&'a [u8], IfdField)> {
-    // tag: 2 bytes
+    // Tag: 2 bytes
     let (remain, tag) = match endian {
         Endian::Big => nom_nums::be_u16(remain),
         Endian::Little => nom_nums::le_u16(remain),
     }
-    .map_err(|x| ExifError::ifd_field_tag_failed().with_nom_source(x))?;
+    .map_err(|x| ExifError::parse(": IFD field tag").with_nom_source(x))?;
 
-    // data format: 2 bytes
+    // Data format: 2 bytes
     let (remain, format) = match endian {
         Endian::Big => nom_nums::be_u16(remain),
         Endian::Little => nom_nums::le_u16(remain),
     }
-    .map_err(|x| ExifError::ifd_field_data_format_failed().with_nom_source(x))?;
+    .map_err(|x| ExifError::parse(": IFD field data format").with_nom_source(x))?;
 
-    // number of components: 4 bytes
+    // Number of components: 4 bytes
     let (remain, components) = match endian {
         Endian::Big => nom_nums::be_u32(remain),
         Endian::Little => nom_nums::le_u32(remain),
     }
-    .map_err(|x| ExifError::ifd_field_components_failed().with_nom_source(x))?;
+    .map_err(|x| ExifError::parse(": IFD field components").with_nom_source(x))?;
 
-    // offset to data value: 4 bytes
+    // Offset to data value: 4 bytes
     let (remain, data, offset) = parse_ifd_data_or_offset(remain, endian)?;
 
-    // create the ifd field and calculate if there is an offset to extract data from
+    // Create the ifd field and calculate if there is an offset to extract data from
     let mut field = IfdField::new(endian, tag, format, components);
     if field.length() > 4 {
         let remain = remain; // save the current position by creating a new variable
 
-        // skip to the offset location
+        // Skip to the offset location
         let consumed = input.len() - remain.len();
         if consumed > offset as usize {
-            return Err(ExifError::offset_failed().with_msg("is negative"));
+            return Err(ExifError::parse(": IFD field offset is negative"));
         }
         let remain = if offset as usize > consumed {
             let (remain, _) = nom_bytes::take(offset as usize - consumed)(remain)
-                .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
+                .map_err(|x| ExifError::parse(": IFD field offset").with_nom_source(x))?;
             remain
         } else {
             remain
         };
 
-        // read the data from the offset location
+        // Read the data from the offset location
         let (_, data) = nom_bytes::take(field.length())(remain)
-            .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
+            .map_err(|x| ExifError::parse(": IFD field data").with_nom_source(x))?;
 
         field.offset = Some(offset);
         field.data = Some(data.to_vec());
@@ -174,29 +160,64 @@ fn parse_ifd_field<'a>(
     Ok((remain, field))
 }
 
-/// Parse IFD
-/// * **input** is the full data source from tiff header alignment
-/// * **remain** starts with the ifd offset
-fn parse_ifd<'a>(input: &'a [u8], remain: &'a [u8], endian: Endian) -> ExifResult<(&'a [u8], Ifd)> {
-    let mut ifd = Ifd::default();
+/// Parse the Exif header: 6 bytes `4578 6966 0000` => `Exif` and 2 bytes of padding 0000
+fn parse_exif_header(input: &[u8]) -> ExifResult<(&[u8], [u8; 4])> {
+    nom::sequence::terminated(
+        nom::bytes::streaming::tag::<[u8; 4], &[u8], nom::error::Error<&[u8]>>(EXIF_IDENTIFIER),
+        nom::bytes::streaming::tag::<[u8; 2], &[u8], nom::error::Error<&[u8]>>([0x00, 0x00]),
+    )(input)
+    .map(|(remain, x)| (remain, x.try_into().unwrap()))
+    .map_err(|x| ExifError::parse(": Exif header").with_nom_source(x))
+}
 
-    // Parse out the number of IFD fields to expect
-    let (remain, count) = parse_ifd_field_count(remain, endian)?;
+/// (2 bytes) Parse the TIFF header byte alignment
+fn parse_tiff_endian(input: &[u8]) -> ExifResult<(&[u8], Endian)> {
+    let (remain, alignment) = nom::branch::alt((
+        nom::bytes::streaming::tag::<[u8; 2], &[u8], nom::error::Error<&[u8]>>(BIG_ENDIAN),
+        nom::bytes::streaming::tag::<[u8; 2], &[u8], nom::error::Error<&[u8]>>(LITTLE_ENDIAN),
+    ))(input)
+    .map_err(|x| ExifError::parse(": TIFF endian").with_nom_source(x))?;
 
-    // Parse out each of the IFD fields
-    let mut remain = remain;
-    for _ in 0..count {
-        let (r, f) = parse_ifd_field(input, remain, endian)?;
-        remain = r;
-        ifd.fields.push(f);
+    // Convert to endian, has to be a valid value per nom above
+    let array: [u8; 2] = alignment.try_into().unwrap();
+    let endian: Endian = array.into();
+
+    Ok((remain, endian))
+}
+
+/// (2 bytes) Parse the TIFF IFD 0 marker, always 2A00 or 0024
+fn parse_tiff_version(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u16)> {
+    match endian {
+        Endian::Big => nom::number::streaming::be_u16(input),
+        Endian::Little => nom::number::streaming::le_u16(input),
+    }
+    .map_err(|e| ExifError::parse(": TIFF version").with_nom_source(e))
+}
+
+/// Parse out a 4 byte values as either raw data bytes in big endian or an offset
+/// Returns: (remaining bytes, data bytes, offset)
+fn parse_ifd_data_or_offset(input: &[u8], endian: Endian) -> ExifResult<(&[u8], [u8; 4], u32)> {
+    let (remain, offset) = match endian {
+        Endian::Big => nom_nums::be_u32(input),
+        Endian::Little => nom_nums::le_u32(input),
+    }
+    .map_err(|x| ExifError::parse(": IFD data or offset").with_nom_source(x))?;
+
+    // Validate the offset
+    if offset == 0 {
+        return Err(ExifError::parse(": Offset is zero"));
     }
 
-    // read the ifd offset and skip to the ifd offset location
-    // let (remain, _, offset) = parse_ifd_data_or_offset(remain, endian)?;
-    // let (remain, _) = nom_bytes::take(offset as usize - (input.len() - remain.len()))(remain)
-    //     .map_err(|x| ExifError::offset_failed().with_nom_source(x))?;
+    Ok((remain, offset.to_be_bytes(), offset))
+}
 
-    Ok((remain, ifd))
+/// (2 bytes) Parse number of entries in the IFD
+fn parse_ifd_field_count(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u16)> {
+    match endian {
+        Endian::Big => nom_nums::be_u16(input),
+        Endian::Little => nom_nums::le_u16(input),
+    }
+    .map_err(|x| ExifError::parse(": IFD field count").with_nom_source(x))
 }
 
 #[cfg(test)]
@@ -208,20 +229,11 @@ mod tests {
         formats::jpeg::JPEG_TEST_DATA,
     };
 
-    // #[test]
-    // fn test_parse_ifd_big_endian() {
-    //     let (remain, ifd) =
-    //         parse_ifd(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[34..], Endian::Little).unwrap();
-    //     // assert_eq!(remain, &IFD_LE[34..]);
-
-    //     // let file = &ifd.files[0];
-    //     // assert_eq!(file.tag, 282);
-    //     // assert_eq!(file.format, 5);
-    //     // assert_eq!(file.components, 1);
-    //     // assert_eq!(file.offset, Some(35));
-    //     // assert_eq!(file.data_length(), 8);
-    //     // assert_eq!(file.data, Some(Vec::from(&IFD_LE[34..])));
-    // }
+    #[test]
+    fn test_parse() {
+        let (remain, ifd) =
+            parse(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[34..], Endian::Little).unwrap();
+    }
 
     #[test]
     fn test_parse_ifd1() {
@@ -325,7 +337,7 @@ mod tests {
 
         let field5 = &ifd0.fields[5];
         assert_eq!(field5.endian, Endian::Big);
-        assert_eq!(field5.tag, tag::EXIF_IFD_OFFSET);
+        assert_eq!(field5.tag, tag::EXIF_SUB_IFD_OFFSET);
         assert_eq!(field5.format, format::UNSIGNED_LONG);
         assert_eq!(field5.components, 1);
         assert_eq!(field5.offset, None);
@@ -438,7 +450,7 @@ mod tests {
     #[test]
     fn test_parse_ifd_field_count_not_enough_data() {
         let err = parse_ifd_field_count(&[0xFF], Endian::Big).unwrap_err();
-        assert_eq!(err.to_string(), "Exif IFD field count invalid");
+        assert_eq!(err.to_string(), "Exif parse failed: IFD field count");
         assert_eq!(
             err.source_to_string(),
             "nom::Parsing requires 1 bytes/chars"
@@ -470,13 +482,16 @@ mod tests {
         ];
 
         let err = parse_ifd_field(data, data, Endian::Big).unwrap_err();
-        assert_eq!(err.to_string(), "Exif IFD offset failed: is negative");
+        assert_eq!(
+            err.to_string(),
+            "Exif parse failed: IFD field offset is negative"
+        );
     }
 
     #[test]
     fn test_parse_ifd_offset_not_enough_data() {
         let err = parse_ifd_data_or_offset(&[0xFF], Endian::Big).unwrap_err();
-        assert_eq!(err.to_string(), "Exif IFD offset failed");
+        assert_eq!(err.to_string(), "Exif parse failed: IFD data or offset");
         assert_eq!(
             err.source_to_string(),
             "nom::Parsing requires 3 bytes/chars"
@@ -505,7 +520,7 @@ mod tests {
     #[test]
     fn test_parse_tiff_version_not_enough_data() {
         let err = parse_tiff_version(&[0xFF], Endian::Big).unwrap_err();
-        assert_eq!(err.to_string(), "Exif TIFF version invalid");
+        assert_eq!(err.to_string(), "Exif parse failed: TIFF version");
         assert_eq!(
             err.source_to_string(),
             "nom::Parsing requires 1 bytes/chars"
@@ -529,7 +544,7 @@ mod tests {
     #[test]
     fn test_parse_tiff_alignemnt_unknown() {
         let err = parse_tiff_endian(&[0xFF, 0xFF]).unwrap_err();
-        assert_eq!(err.to_string(), "Exif TIFF alignment invalid");
+        assert_eq!(err.to_string(), "Exif parse failed: TIFF endian");
         assert_eq!(
             err.source_to_string(),
             "nom::Parsing Error: Error { input: [255, 255], code: Tag }"
@@ -555,7 +570,7 @@ mod tests {
         let err = parse_exif_header(&[]).unwrap_err();
         assert_eq!(
             err.all_to_string(),
-            "Exif identifier invalid ==> nom::Parsing requires 4 bytes/chars"
+            "Exif parse failed: Exif header ==> nom::Parsing requires 4 bytes/chars"
         );
     }
 
@@ -632,10 +647,21 @@ pub(crate) const EXIF_TEST_DATA: [u8; 854] = [
     // EXIF IFD
     /* 134-135 */ 0x00, 0x03, // EXIF IFD: field count
     /* 136-137 */ 0x90, 0x00, // Field 0: Exif Version
-    /* 138-147 */ 0x00, 0x07, 0x00, 0x00, 0x00, 0x04, 0x30, 0x32, 0x33, 0x30, //
-    /* 148-157 */ 0xa0, 0x02, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x0f, //
-    /* 158-167 */ 0x00, 0x00, 0xa0, 0x03, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, //
-    /* 168-175 */ 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //
+    /* 138-139 */ 0x00, 0x07, // Field 0: data format (7), undefined
+    /* 140-143 */ 0x00, 0x00, 0x00, 0x04, // Field 0: components (4)
+    /* 144-147 */ 0x30, 0x32, 0x33, 0x30, // Field 0: data (0230)
+    //
+    /* 148-149 */ 0xa0, 0x02, // Field 1: Image Width
+    /* 150-151 */ 0x00, 0x03, // Field 1: data format, unsigned short
+    /* 152-155 */ 0x00, 0x00, 0x00, 0x01, // Field 1: components (1)
+    /* 156-159 */ 0x00, 0x0f, 0x00, 0x00, // Field 1: data (16)
+    //
+    /* 160-161 */ 0xa0, 0x03, // Field 2: Image Height
+    /* 162-163 */ 0x00, 0x03, // Field 2: data format, unsigned short
+    /* 164-167 */ 0x00, 0x00, 0x00, 0x01, // Field 2: components (1)
+    /* 168-171 */ 0x00, 0x07, 0x00, 0x00, // Field 2: data (7)
+    //
+    /* 172-175 */ 0x00, 0x00, 0x00, 0x00, // End of EXIF IFD
     //
     // IFD 1
     /* 176-177 */ 0x00, 0x02, // IFD 1: field count

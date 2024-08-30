@@ -5,65 +5,45 @@ use super::{BaseError, ContextError};
 #[derive(Debug)]
 #[non_exhaustive] // allow for future error fields
 pub struct ExifError {
-    pub kind: ExifErrorKind,         // extensible kind messaging
-    data: Option<ExifErrorDataKind>, // additional error data
-    source: Option<ContextError>,    // optional extensible source error
+    pub kind: ExifErrorKind,      // extensible kind
+    pub data: Option<Box<[u8]>>,  // additional error data
+    pub msg: Option<String>,      // optional error message to include
+    source: Option<ContextError>, // optional extensible source error
 }
 
 impl ExifError {
-    pub fn new(kind: ExifErrorKind) -> Self {
+    pub fn new() -> Self {
         Self {
+            kind: ExifErrorKind::Parse,
             data: None,
-            kind,
+            msg: None,
             source: None,
         }
     }
 
-    pub fn identifier_invalid() -> Self {
-        ExifError::new(ExifErrorKind::IdentifierInvalid)
+    fn with_kind(kind: ExifErrorKind) -> Self {
+        Self {
+            kind,
+            data: None,
+            msg: None,
+            source: None,
+        }
     }
 
-    pub fn version_invalid() -> Self {
-        ExifError::new(ExifErrorKind::VersionInvalid)
+    /// Create a new error for a failed operation
+    pub fn parse<T: AsRef<str>>(msg: T) -> Self {
+        ExifError::with_kind(ExifErrorKind::Parse).with_msg(msg)
     }
 
-    pub fn endian_invalid() -> Self {
-        ExifError::new(ExifErrorKind::AlignmentInvalid)
-    }
-
-    pub fn count_invalid() -> Self {
-        ExifError::new(ExifErrorKind::FieldCountInvalid)
-    }
-
-    pub fn offset_failed() -> Self {
-        ExifError::new(ExifErrorKind::OffsetFailed)
-    }
-
-    pub fn field_failed() -> Self {
-        ExifError::new(ExifErrorKind::FieldFailed)
-    }
-
-    pub fn ifd_field_tag_failed() -> Self {
-        ExifError::new(ExifErrorKind::IfdFieldTagFailed)
-    }
-
-    pub fn ifd_field_data_format_failed() -> Self {
-        ExifError::new(ExifErrorKind::IfdFieldDataFormatFailed)
-    }
-
-    pub fn ifd_field_components_failed() -> Self {
-        ExifError::new(ExifErrorKind::IfdFieldComponentCountFailed)
-    }
-
-    // Add additional error data for output with the error message
-    pub fn with_msg<T: fmt::Display>(mut self, str: T) -> Self {
-        self.data = Some(ExifErrorDataKind::String(str.to_string()));
+    /// Add additional error data for output with the error message
+    pub(crate) fn with_data(mut self, data: &[u8]) -> Self {
+        self.data = Some(data.into());
         self
     }
 
-    // Add additional error data for output with the error message
-    pub fn with_data(mut self, data: &[u8]) -> Self {
-        self.data = Some(ExifErrorDataKind::Bytes(data.into()));
+    /// Add optional error message detail for output with the standard error messsage for this kind
+    pub(crate) fn with_msg<T: AsRef<str>>(mut self, msg: T) -> Self {
+        self.msg = Some(msg.as_ref().into());
         self
     }
 
@@ -90,26 +70,19 @@ impl BaseError for ExifError {}
 impl fmt::Display for ExifError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
-            ExifErrorKind::IdentifierInvalid => write!(f, "Exif identifier invalid")?,
-            ExifErrorKind::AlignmentInvalid => write!(f, "Exif TIFF alignment invalid")?,
-            ExifErrorKind::VersionInvalid => write!(f, "Exif TIFF version invalid")?,
-            ExifErrorKind::FieldCountInvalid => write!(f, "Exif IFD field count invalid")?,
-            ExifErrorKind::OffsetFailed => write!(f, "Exif IFD offset failed")?,
-            ExifErrorKind::FieldFailed => write!(f, "Exif IFD field failed")?,
-            ExifErrorKind::IfdFieldTagFailed => write!(f, "Exif IFD field tag failed")?,
-            ExifErrorKind::IfdFieldDataFormatFailed => {
-                write!(f, "Exif IFD field data format failed")?
-            }
-            ExifErrorKind::IfdFieldComponentCountFailed => {
-                write!(f, "Exif IFD field component count failed")?
-            }
+            ExifErrorKind::Parse => write!(f, "Exif parse failed")?,
         };
 
-        // Display additional error data if available
-        if let Some(ExifErrorDataKind::String(str)) = &self.data {
-            write!(f, ": {}", str)?;
-        } else if let Some(ExifErrorDataKind::Bytes(data)) = &self.data {
-            write!(f, ": {:02x?}", data)?;
+        // Display additional messaging if available
+        if let Some(msg) = self.msg.as_ref() {
+            if !msg.is_empty() {
+                write!(f, "{}", msg)?;
+            };
+        };
+        if let Some(data) = self.data.as_ref() {
+            if data.len() > 0 {
+                write!(f, " {:02x?}", data)?;
+            };
         };
         Ok(())
     }
@@ -132,23 +105,8 @@ impl AsRef<dyn Error> for ExifError {
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum ExifErrorDataKind {
-    String(String),
-    Bytes(Box<[u8]>),
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
 pub enum ExifErrorKind {
-    IdentifierInvalid,
-    AlignmentInvalid,
-    VersionInvalid,
-    FieldCountInvalid,
-    OffsetFailed,
-    FieldFailed,
-    IfdFieldTagFailed,
-    IfdFieldDataFormatFailed,
-    IfdFieldComponentCountFailed,
+    Parse,
 }
 
 #[cfg(test)]

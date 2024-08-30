@@ -109,7 +109,7 @@ pub fn parse(mut reader: impl io::BufRead) -> Result<(Option<Jfif>, Option<Exif>
 }
 
 /// Dump meta data segments from the given JPEG source for debugging purposes.
-pub fn dump(mut reader: impl io::Read) -> Result<(), JpegError> {
+pub fn dump_segments(mut reader: impl io::Read) -> Result<(), JpegError> {
     for segment in parse_segments(&mut reader)? {
         println!("{}", segment);
     }
