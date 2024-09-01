@@ -4,7 +4,7 @@ use nom::number::streaming as nom_nums;
 use nom::{bytes::streaming as nom_bytes, Err};
 
 use super::{tag, Endian, Ifd, IfdField, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN};
-use crate::errors::ExifError;
+use crate::errors::{ExifError, ExifErrorKind};
 
 /// Simplify the Exif return type slightly
 pub type ExifResult<T> = Result<T, ExifError>;
@@ -50,25 +50,35 @@ fn parse_ifds<'a>(
 ) -> ExifResult<(&'a [u8], Vec<Ifd>)> {
     let mut ifds: Vec<Ifd> = Vec::new();
 
+    let mut outer = remain;
     loop {
-        let (remain, _, offset) = parse_ifd_data_or_offset(remain, endian)?;
-
-        // Offset of zero means we've hit the end of our IFDs
-        if offset == 0 {
-            break;
-        }
+        // Determine if we have an offset to the next IFD or the end of the IFDs
+        let (inner, offset) = match parse_ifd_data_or_offset(outer, endian) {
+            Ok((inner, _, offset)) => (inner, offset),
+            Err(ExifError {
+                kind: ExifErrorKind::OffsetIsZero,
+                ..
+            }) => {
+                break;
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        };
 
         // Skip to the offset location
-        let (remain, _) = nom_bytes::take(offset as usize - (input.len() - remain.len()))(remain)
+        let (inner, _) = nom_bytes::take(offset as usize - (input.len() - inner.len()))(inner)
             .map_err(|x| ExifError::parse(": Offset to IFD").with_nom_source(x))?;
 
         // Parse the IFD
-        let (remain, ifd) = parse_ifd(remain, remain, endian)?;
-
+        let (inner, ifd) = parse_ifd(input, inner, endian)?;
         ifds.push(ifd);
+
+        // Track location
+        outer = inner;
     }
 
-    Ok((remain, ifds))
+    Ok((outer, ifds))
 }
 
 /// Parse IFD
@@ -230,9 +240,9 @@ mod tests {
     };
 
     #[test]
-    fn test_parse() {
-        let (remain, ifd) =
-            parse(&JPEG_TEST_DATA[30..], &JPEG_TEST_DATA[34..], Endian::Little).unwrap();
+    fn test_parse_ifds() {
+        let (remain, ifds) =
+            parse_ifds(&EXIF_TEST_DATA, &EXIF_TEST_DATA[4..], Endian::Big).unwrap();
     }
 
     #[test]

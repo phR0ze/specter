@@ -3,8 +3,15 @@ use std::{error::Error, fmt};
 use super::{BaseError, ContextError};
 
 #[derive(Debug)]
+pub(crate) struct ExifErrorInner {
+    pub data: Option<Box<[u8]>>,  // additional error data
+    pub msg: Option<String>,      // optional error message to include
+    source: Option<ContextError>, // optional extensible source error
+}
+
+#[derive(Debug)]
 #[non_exhaustive] // allow for future error fields
-pub struct ExifError {
+pub enum ExifError {
     pub kind: ExifErrorKind,      // extensible kind
     pub data: Option<Box<[u8]>>,  // additional error data
     pub msg: Option<String>,      // optional error message to include
@@ -33,6 +40,11 @@ impl ExifError {
     /// Create a new error for a failed operation
     pub fn parse<T: AsRef<str>>(msg: T) -> Self {
         ExifError::with_kind(ExifErrorKind::Parse).with_msg(msg)
+    }
+
+    /// Create a new error for a failed operation
+    pub fn offset_zero() -> Self {
+        ExifError::with_kind(ExifErrorKind::OffsetIsZero)
     }
 
     /// Add additional error data for output with the error message
@@ -71,6 +83,7 @@ impl fmt::Display for ExifError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
             ExifErrorKind::Parse => write!(f, "Exif parse failed")?,
+            ExifErrorKind::OffsetIsZero => write!(f, "Exif parse failed: Offset is zero")?,
         };
 
         // Display additional messaging if available
@@ -107,6 +120,7 @@ impl AsRef<dyn Error> for ExifError {
 #[non_exhaustive]
 pub enum ExifErrorKind {
     Parse,
+    OffsetIsZero,
 }
 
 #[cfg(test)]
