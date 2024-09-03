@@ -25,65 +25,52 @@ impl From<u8> for DensityUnit {
 
 #[derive(Debug, Clone)]
 pub struct Jfif {
-    pub major: u8,                  // major version
-    pub minor: u8,                  // minor version
-    pub density: DensityUnit,       // density unit
-    pub x_density: u16,             // horizontal pixel density
-    pub y_density: u16,             // vertical pixel density
-    pub x_dimension: u8,            // horizontal pixels of the embedded RGB thumbnail
-    pub y_dimension: u8,            // vertical pixels of the embedded RGB thumbnail
-    pub thumbnail: Option<Vec<u8>>, // uncompressed 24 bit RGB raster thumbnail
+    pub(crate) major: u8,                  // major version
+    pub(crate) minor: u8,                  // minor version
+    pub(crate) density: DensityUnit,       // density unit
+    pub(crate) x_density: u16,             // horizontal pixel density
+    pub(crate) y_density: u16,             // vertical pixel density
+    pub(crate) x_dimension: u8,            // horizontal pixels of the embedded RGB thumbnail
+    pub(crate) y_dimension: u8,            // vertical pixels of the embedded RGB thumbnail
+    pub(crate) thumbnail: Option<Vec<u8>>, // uncompressed 24 bit RGB raster thumbnail
 }
 
-impl Default for Jfif {
-    fn default() -> Self {
-        Self {
-            major: 0,
-            minor: 0,
-            density: DensityUnit::None,
-            x_density: 0,
-            y_density: 0,
-            x_dimension: 0,
-            y_dimension: 0,
-            thumbnail: None,
+impl Jfif {
+    /// Parse the given data into a JFIF structure
+    /// * **Field**        | **Bytes** | **Description**
+    /// * *Identifier*     | 5     | `0x4a 0x46 0x49 0x46 0x00` = `JFIF` in ASCII terminated by a null byte
+    /// * *JFIF version*   | 2     | `0x01 0x02` is the major and minor JFIF version i.e. `1.02`
+    /// * *Density Units*  | 1     | `0x00` = None, `0x01` = pixels per inch, `0x02` = pixels per centimeter
+    /// * *Xdensity*       | 2     | `0x00 0x48` = `72` Horizontal pixel density, Must not be zero
+    /// * *Ydensity*       | 2     | `0x00 0x48` = `72` Vertical pixel density, Must not be zero
+    /// * *Xthumbnail*     | 1     | `0x00` Horizontal pixels of the embedded RGB thumbnail, May be zero
+    /// * *Ythumbnail*     | 1     | `0x00` Vertical pixels of the embedded RGB thumbnail, May be zero
+    /// * *Thumbnail data* | 3 x n | Uncompressed 24 bit RGB (8 bits per color channel) raster thumbnail
+    pub(crate) fn parse(input: &[u8]) -> Result<Jfif, JfifError> {
+        let (remain, _) = parse_header(input)?;
+        let (remain, major, minor) = parse_version(remain)?;
+
+        let (remain, density, x_density, y_density) = parse_density(remain)?;
+
+        let (remain, x_dimension, y_dimension) = parse_thumbnail_dimensions(remain)?;
+
+        // Check if a thumbnail was included
+        if x_dimension != 0 && y_dimension != 0 {
+            // TODO: Parse the thumbnail data
+            Err(JfifError::parse(": thumbnail invalid").with_data(remain))?;
         }
+
+        Ok(Self {
+            major: major,
+            minor: minor,
+            density: density,
+            x_density: x_density,
+            y_density: y_density,
+            x_dimension: x_dimension,
+            y_dimension: y_dimension,
+            thumbnail: None,
+        })
     }
-}
-
-/// Parse the given data into a JFIF structure
-/// * **Field**        | **Bytes** | **Description**
-/// * *Identifier*     | 5     | `0x4a 0x46 0x49 0x46 0x00` = `JFIF` in ASCII terminated by a null byte
-/// * *JFIF version*   | 2     | `0x01 0x02` is the major and minor JFIF version i.e. `1.02`
-/// * *Density Units*  | 1     | `0x00` = None, `0x01` = pixels per inch, `0x02` = pixels per centimeter
-/// * *Xdensity*       | 2     | `0x00 0x48` = `72` Horizontal pixel density, Must not be zero
-/// * *Ydensity*       | 2     | `0x00 0x48` = `72` Vertical pixel density, Must not be zero
-/// * *Xthumbnail*     | 1     | `0x00` Horizontal pixels of the embedded RGB thumbnail, May be zero
-/// * *Ythumbnail*     | 1     | `0x00` Vertical pixels of the embedded RGB thumbnail, May be zero
-/// * *Thumbnail data* | 3 x n | Uncompressed 24 bit RGB (8 bits per color channel) raster thumbnail
-pub fn parse(input: &[u8]) -> Result<Jfif, JfifError> {
-    let mut jfif = Jfif::default();
-
-    let (remain, _) = parse_header(input)?;
-    let (remain, major, minor) = parse_version(remain)?;
-    jfif.major = major;
-    jfif.minor = minor;
-
-    let (remain, density, x_density, y_density) = parse_density(remain)?;
-    jfif.density = density;
-    jfif.x_density = x_density;
-    jfif.y_density = y_density;
-
-    let (remain, x_dimension, y_dimension) = parse_thumbnail_dimensions(remain)?;
-    jfif.x_dimension = x_dimension;
-    jfif.y_dimension = y_dimension;
-
-    // Check if a thumbnail was included
-    if x_dimension != 0 && y_dimension != 0 {
-        // TODO: Parse the thumbnail data
-        Err(JfifError::thumbnail_invalid().with_data(remain))?;
-    }
-
-    Ok(jfif)
 }
 
 // Parse the JFIF identifier
@@ -92,7 +79,7 @@ fn parse_header(input: &[u8]) -> Result<(&[u8], [u8; 4]), JfifError> {
         nom::bytes::streaming::tag::<[u8; 4], &[u8], nom::error::Error<&[u8]>>(JFIF_IDENTIFIER),
         nom::bytes::streaming::tag::<[u8; 1], &[u8], nom::error::Error<&[u8]>>([0x00]),
     )(input)
-    .map_err(|x| JfifError::identifier_invalid().with_nom_source(x))?;
+    .map_err(|x| JfifError::parse(": identifier invalid").with_nom_source(x))?;
 
     Ok((remain, id.try_into().unwrap()))
 }
@@ -100,7 +87,7 @@ fn parse_header(input: &[u8]) -> Result<(&[u8], [u8; 4]), JfifError> {
 // Parse the JFIF version
 fn parse_version(input: &[u8]) -> Result<(&[u8], u8, u8), JfifError> {
     let (remain, (major, minor)) = nom::sequence::tuple((nom_nums::u8, nom_nums::u8))(input)
-        .map_err(|x| JfifError::version_invalid().with_nom_source(x))?;
+        .map_err(|x| JfifError::parse(": version invalid").with_nom_source(x))?;
     Ok((remain, major, minor))
 }
 
@@ -108,10 +95,10 @@ fn parse_version(input: &[u8]) -> Result<(&[u8], u8, u8), JfifError> {
 fn parse_density(input: &[u8]) -> Result<(&[u8], DensityUnit, u16, u16), JfifError> {
     let (remain, (density_data, x_density, y_density)) =
         nom::sequence::tuple((nom_nums::u8, nom_nums::be_u16, nom_nums::be_u16))(input)
-            .map_err(|x| JfifError::density_units_invalid().with_nom_source(x))?;
+            .map_err(|x| JfifError::parse(": density units invalid").with_nom_source(x))?;
     let density: DensityUnit = density_data.into();
     if density == DensityUnit::Unknown {
-        return Err(JfifError::density_units_unknown().with_data(&[density_data]));
+        return Err(JfifError::parse(": density units unknown").with_data(&[density_data]));
     };
     Ok((remain, density, x_density, y_density))
 }
@@ -120,7 +107,7 @@ fn parse_density(input: &[u8]) -> Result<(&[u8], DensityUnit, u16, u16), JfifErr
 fn parse_thumbnail_dimensions(input: &[u8]) -> Result<(&[u8], u8, u8), JfifError> {
     let (remain, (x_thumbnail, y_thumbnail)) =
         nom::sequence::tuple((nom_nums::u8, nom_nums::u8))(input)
-            .map_err(|x| JfifError::thumbnail_dimensions_invalid().with_nom_source(x))?;
+            .map_err(|x| JfifError::parse(": thumbnail dimensions invalid").with_nom_source(x))?;
     Ok((remain, x_thumbnail, y_thumbnail))
 }
 
@@ -143,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_parse_jfif_success() {
-        let jfif = parse(&JFIF_DATA_1[4..]).unwrap();
+        let jfif = Jfif::parse(&JFIF_DATA_1[4..]).unwrap();
         assert_eq!(jfif.major, 1);
         assert_eq!(jfif.minor, 2);
         assert_eq!(jfif.density, DensityUnit::PixelsPerInch);
@@ -158,7 +145,7 @@ mod tests {
         let err = parse_thumbnail_dimensions(&[]).unwrap_err();
         assert_eq!(
             err.all_to_string(),
-            "JFIF thumbnail dimensions invalid ==> nom::Parsing requires 1 bytes/chars"
+            "JFIF parse failed: thumbnail dimensions invalid ==> nom::Parsing requires 1 bytes/chars"
         );
     }
 
@@ -176,7 +163,7 @@ mod tests {
         let err = parse_density(&[]).unwrap_err();
         assert_eq!(
             err.all_to_string(),
-            "JFIF density units invalid ==> nom::Parsing requires 1 bytes/chars"
+            "JFIF parse failed: density units invalid ==> nom::Parsing requires 1 bytes/chars"
         );
     }
 
@@ -194,7 +181,7 @@ mod tests {
         let err = parse_version(&[]).unwrap_err();
         assert_eq!(
             err.all_to_string(),
-            "JFIF version invalid ==> nom::Parsing requires 1 bytes/chars"
+            "JFIF parse failed: version invalid ==> nom::Parsing requires 1 bytes/chars"
         );
     }
 
@@ -211,7 +198,7 @@ mod tests {
         let err = parse_header(&[]).unwrap_err();
         assert_eq!(
             err.all_to_string(),
-            "JFIF identifier invalid ==> nom::Parsing requires 4 bytes/chars"
+            "JFIF parse failed: identifier invalid ==> nom::Parsing requires 4 bytes/chars"
         );
     }
 

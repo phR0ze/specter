@@ -3,18 +3,11 @@ use std::{error::Error, fmt};
 use super::{BaseError, ContextError};
 
 #[derive(Debug)]
-pub(crate) struct ExifErrorInner {
-    pub data: Option<Box<[u8]>>,  // additional error data
-    pub msg: Option<String>,      // optional error message to include
-    source: Option<ContextError>, // optional extensible source error
-}
-
-#[derive(Debug)]
 #[non_exhaustive] // allow for future error fields
-pub enum ExifError {
-    pub kind: ExifErrorKind,      // extensible kind
-    pub data: Option<Box<[u8]>>,  // additional error data
-    pub msg: Option<String>,      // optional error message to include
+pub struct ExifError {
+    kind: ExifErrorKind,          // extensible kind
+    data: Option<Box<[u8]>>,      // additional error data
+    msg: Option<String>,          // optional error message to include
     source: Option<ContextError>, // optional extensible source error
 }
 
@@ -35,6 +28,19 @@ impl ExifError {
             msg: None,
             source: None,
         }
+    }
+
+    /// Get the error data
+    pub fn data(&self) -> Option<&[u8]> {
+        match &self.data {
+            Some(data) => Some(data.as_ref()),
+            None => None,
+        }
+    }
+
+    /// Get the error kind
+    pub fn kind(&self) -> &ExifErrorKind {
+        &self.kind
     }
 
     /// Create a new error for a failed operation

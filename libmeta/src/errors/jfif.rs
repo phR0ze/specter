@@ -6,46 +6,57 @@ use super::{BaseError, ContextError};
 #[non_exhaustive] // allow for future error fields
 pub struct JfifError {
     pub kind: JfifErrorKind,      // extensible kind messaging
-    data: Box<[u8]>,              // additional error data
+    data: Option<Box<[u8]>>,      // additional error data
+    msg: Option<String>,          // optional error message to include
     source: Option<ContextError>, // optional extensible source error
 }
 
 impl JfifError {
     pub fn new(kind: JfifErrorKind) -> Self {
         Self {
-            data: Box::new([]),
-            kind,
+            kind: JfifErrorKind::Parse,
+            data: None,
+            msg: None,
             source: None,
         }
     }
 
-    pub fn identifier_invalid() -> Self {
-        JfifError::new(JfifErrorKind::IdentifierInvalid)
+    fn with_kind(kind: JfifErrorKind) -> Self {
+        Self {
+            kind,
+            data: None,
+            msg: None,
+            source: None,
+        }
     }
 
-    pub fn version_invalid() -> Self {
-        JfifError::new(JfifErrorKind::VersionInvalid)
+    /// Get the error data
+    pub fn data(&self) -> Option<&[u8]> {
+        match &self.data {
+            Some(data) => Some(data.as_ref()),
+            None => None,
+        }
     }
 
-    pub fn density_units_invalid() -> Self {
-        JfifError::new(JfifErrorKind::DensityUnitsInvalid)
+    /// Get the error kind
+    pub fn kind(&self) -> &JfifErrorKind {
+        &self.kind
     }
 
-    pub fn density_units_unknown() -> Self {
-        JfifError::new(JfifErrorKind::DensityUnitsUnknown)
+    /// Create a new error for a failed operation
+    pub fn parse<T: AsRef<str>>(msg: T) -> Self {
+        JfifError::with_kind(JfifErrorKind::Parse).with_msg(msg)
     }
 
-    pub fn thumbnail_invalid() -> Self {
-        JfifError::new(JfifErrorKind::ThumbnailInvalid)
+    /// Add additional error data for output with the error message
+    pub(crate) fn with_data(mut self, data: &[u8]) -> Self {
+        self.data = Some(data.into());
+        self
     }
 
-    pub fn thumbnail_dimensions_invalid() -> Self {
-        JfifError::new(JfifErrorKind::ThumbnailDimensionsInvalid)
-    }
-
-    // Add additional error data for output with the error message
-    pub fn with_data(mut self, data: &[u8]) -> Self {
-        self.data = data.into();
+    /// Add optional error message detail for output with the standard error messsage for this kind
+    pub(crate) fn with_msg<T: AsRef<str>>(mut self, msg: T) -> Self {
+        self.msg = Some(msg.as_ref().into());
         self
     }
 
@@ -72,19 +83,19 @@ impl BaseError for JfifError {}
 impl fmt::Display for JfifError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
-            JfifErrorKind::IdentifierInvalid => write!(f, "JFIF identifier invalid")?,
-            JfifErrorKind::VersionInvalid => write!(f, "JFIF version invalid")?,
-            JfifErrorKind::DensityUnitsInvalid => write!(f, "JFIF density units invalid")?,
-            JfifErrorKind::DensityUnitsUnknown => write!(f, "JFIF density units unknown")?,
-            JfifErrorKind::ThumbnailInvalid => write!(f, "JFIF thumbnail invalid")?,
-            JfifErrorKind::ThumbnailDimensionsInvalid => {
-                write!(f, "JFIF thumbnail dimensions invalid")?
-            }
+            JfifErrorKind::Parse => write!(f, "JFIF parse failed")?,
         };
 
-        // Display additional error data if available
-        if self.data.len() > 0 {
-            write!(f, " {:02x?}", self.data)?;
+        // Display additional messaging if available
+        if let Some(msg) = self.msg.as_ref() {
+            if !msg.is_empty() {
+                write!(f, "{}", msg)?;
+            };
+        };
+        if let Some(data) = self.data.as_ref() {
+            if data.len() > 0 {
+                write!(f, " {:02x?}", data)?;
+            };
         };
         Ok(())
     }
@@ -108,12 +119,7 @@ impl AsRef<dyn Error> for JfifError {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum JfifErrorKind {
-    IdentifierInvalid,
-    VersionInvalid,
-    DensityUnitsInvalid,
-    DensityUnitsUnknown,
-    ThumbnailInvalid,
-    ThumbnailDimensionsInvalid,
+    Parse,
 }
 
 #[cfg(test)]

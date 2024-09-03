@@ -20,6 +20,14 @@ impl Segment {
         }
     }
 
+    /// Get the segment data as a reference
+    pub(crate) fn data_as_ref(&self) -> Result<&Vec<u8>, JpegError> {
+        match self.data {
+            Some(ref data) => Ok(data),
+            _ => Err(JpegError::operation(": segment data not available")),
+        }
+    }
+
     pub(crate) fn data_to_ascii(&self) -> Result<String, JpegError> {
         match self.data {
             Some(ref data) => {

@@ -1,11 +1,10 @@
-mod meta;
-
 pub mod errors;
-pub mod formats;
+mod formats;
+mod meta;
 
 use std::io;
 
-use errors::MetaError;
+pub use errors::MetaError;
 use meta::*;
 
 /// All essential symbols in a simple consumable form
@@ -15,7 +14,7 @@ use meta::*;
 /// use libmeta::prelude::*;
 /// ```
 pub mod prelude {
-    pub use crate::errors;
+    pub use crate::errors::*;
     pub use crate::formats::*;
     pub use crate::meta::*;
 }

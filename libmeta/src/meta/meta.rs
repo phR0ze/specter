@@ -1,9 +1,9 @@
 use std::io::{self, Read};
 
-use super::{exif::Exif, jfif::Jfif, Kind};
+use super::{Exif, Jfif, Kind};
 use crate::{
     errors::{DataError, MetaError},
-    formats::jpeg,
+    formats::{jpeg, jpeg::Jpeg},
 };
 
 /// Meta provides encapsulation for the different metadata types that can be parsed
@@ -11,9 +11,9 @@ use crate::{
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct Meta {
-    exif: Option<Exif>,
+    //exif: Option<Exif>,
     // Itpc
-    jfif: Option<Jfif>,
+    //jfif: Option<Jfif>,
     // Xmp
     kind: Kind,
 }
@@ -26,12 +26,8 @@ impl Meta {
 
         // Check the header to determine the media type
         if jpeg::is_jpeg(&header) {
-            let (jfif, exif) = jpeg::parse(header.chain(reader))?;
-            Ok(Self {
-                jfif,
-                exif,
-                kind: Kind::Jpeg,
-            })
+            let jpeg = Jpeg::parse(header.chain(reader))?;
+            Ok(Self { kind: Kind::Jpeg })
         } else {
             Err(MetaError::unknown_header(&header))
         }

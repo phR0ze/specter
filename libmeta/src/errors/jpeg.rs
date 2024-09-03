@@ -31,6 +31,11 @@ impl JpegError {
     }
 
     /// Create a new error for a failed operation
+    pub fn operation<T: AsRef<str>>(msg: T) -> Self {
+        JpegError::with_kind(JpegErrorKind::Operation).with_msg(msg)
+    }
+
+    /// Create a new error for a failed operation
     pub fn parse<T: AsRef<str>>(msg: T) -> Self {
         JpegError::with_kind(JpegErrorKind::Parse).with_msg(msg)
     }
@@ -90,6 +95,7 @@ impl JpegError {
 impl fmt::Display for JpegError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
+            JpegErrorKind::Operation => write!(f, "JPEG operation failed")?,
             JpegErrorKind::Parse => write!(f, "JPEG parse failed")?,
             JpegErrorKind::Truncated => write!(f, "JPEG truncated")?,
             JpegErrorKind::ReadFailed => write!(f, "JPEG read failed")?,
@@ -143,6 +149,7 @@ impl From<ExifError> for JpegError {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum JpegErrorKind {
+    Operation,  // Parsed component was not found
     Parse,      // any parsing related erorrs including nom errors
     Truncated,  // used to signal to read more data in some cases
     ReadFailed, // low level io errors

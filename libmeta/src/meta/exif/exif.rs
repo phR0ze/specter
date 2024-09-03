@@ -1,43 +1,39 @@
-use core::panic;
-
+use nom::bytes::streaming as nom_bytes;
 use nom::number::streaming as nom_nums;
-use nom::{bytes::streaming as nom_bytes, Err};
 
-use super::{tag, Endian, Ifd, IfdField, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN};
+use super::{Endian, Ifd, IfdField, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN, TIFF_VERSION};
 use crate::errors::{ExifError, ExifErrorKind};
 
 /// Simplify the Exif return type slightly
 pub type ExifResult<T> = Result<T, ExifError>;
 
-#[derive(Debug, Clone)]
-pub struct Exif {}
-
-impl Default for Exif {
-    fn default() -> Self {
-        Self {}
-    }
+#[derive(Debug)]
+pub struct Exif {
+    pub(crate) ifds: Vec<Ifd>,
 }
 
-impl Exif {}
+impl Exif {
+    /// Parse the given data into a Exif structure
+    /// * **Field**        | **Bytes** | **Description**
+    /// * *Identifier*     | 6     | `4578 6966 0000` = `Exif` and 2 bytes of padding 0000
+    /// * *Tiff header*    | 8     | `4949 2A00 0800 0000`, 2 bytes align `0x4949` is Little-Endian, `0x4D4D` is Big-Endian
+    pub(crate) fn parse(input: &[u8]) -> ExifResult<Exif> {
+        let (exif_data, _) = parse_exif_header(input)?;
 
-/// Parse the given data into a Exif structure
-/// * **Field**        | **Bytes** | **Description**
-/// * *Identifier*     | 6     | `4578 6966 0000` = `Exif` and 2 bytes of padding 0000
-/// * *Tiff header*    | 8     | `4949 2A00 0800 0000`, 2 bytes align `0x4949` is Little-Endian, `0x4D4D` is Big-Endian
-pub fn parse(input: &[u8]) -> ExifResult<Exif> {
-    let mut exif = Exif::default();
-    let (remain, _) = parse_exif_header(input)?;
+        // Parse TIFF alignment
+        let (remain, endian) = parse_tiff_endian(exif_data)?;
 
-    // Parse TIFF alignment
-    let (remain, endian) = parse_tiff_endian(remain)?;
+        // Parse TIFF version
+        let (remain, marker) = parse_tiff_version(remain, endian)?;
+        if marker != TIFF_VERSION {
+            return Err(ExifError::parse(": TIFF version invalid").with_data(&marker));
+        }
 
-    // Parse TIFF version
-    let (remain, marker) = parse_tiff_version(remain, endian)?;
-    if marker != 0x24 {
-        return Err(ExifError::parse(": TIFF version invalid").with_data(&marker.to_be_bytes()));
+        // Parse the IFDs
+        let (_, ifds) = parse_ifds(exif_data, remain, endian)?;
+
+        Ok(Self { ifds })
     }
-
-    Ok(exif)
 }
 
 /// Parse IFDs
@@ -55,15 +51,10 @@ fn parse_ifds<'a>(
         // Determine if we have an offset to the next IFD or the end of the IFDs
         let (inner, offset) = match parse_ifd_data_or_offset(outer, endian) {
             Ok((inner, _, offset)) => (inner, offset),
-            Err(ExifError {
-                kind: ExifErrorKind::OffsetIsZero,
-                ..
-            }) => {
-                break;
-            }
-            Err(e) => {
-                return Err(e);
-            }
+            Err(e) => match e.kind() {
+                ExifErrorKind::OffsetIsZero => break,
+                _ => return Err(e),
+            },
         };
 
         // Skip to the offset location
@@ -196,12 +187,16 @@ fn parse_tiff_endian(input: &[u8]) -> ExifResult<(&[u8], Endian)> {
 }
 
 /// (2 bytes) Parse the TIFF IFD 0 marker, always 2A00 or 0024
-fn parse_tiff_version(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u16)> {
-    match endian {
+/// * Marker will always be returned in Big Endian format
+/// * Returns: (remaining bytes, marker)
+fn parse_tiff_version(input: &[u8], endian: Endian) -> ExifResult<(&[u8], [u8; 2])> {
+    let (remain, marker) = match endian {
         Endian::Big => nom::number::streaming::be_u16(input),
         Endian::Little => nom::number::streaming::le_u16(input),
     }
-    .map_err(|e| ExifError::parse(": TIFF version").with_nom_source(e))
+    .map_err(|e| ExifError::parse(": TIFF version").with_nom_source(e))?;
+
+    Ok((remain, marker.to_be_bytes()))
 }
 
 /// Parse out a 4 byte values as either raw data bytes in big endian or an offset
@@ -213,9 +208,9 @@ fn parse_ifd_data_or_offset(input: &[u8], endian: Endian) -> ExifResult<(&[u8], 
     }
     .map_err(|x| ExifError::parse(": IFD data or offset").with_nom_source(x))?;
 
-    // Validate the offset
+    // Used as a trigger to stop parsing IFDs
     if offset == 0 {
-        return Err(ExifError::parse(": Offset is zero"));
+        return Err(ExifError::offset_zero());
     }
 
     Ok((remain, offset.to_be_bytes(), offset))
@@ -233,16 +228,40 @@ fn parse_ifd_field_count(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u16
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        errors::BaseError,
-        exif::{field, format, tag, LITTLE_ENDIAN},
-        formats::jpeg::JPEG_TEST_DATA,
-    };
+    use crate::meta::exif::{format, tag};
+    use crate::{errors::BaseError, formats::jpeg::JPEG_TEST_DATA};
+
+    #[test]
+    fn test_parse() {
+        let (exif) = Exif::parse(&JPEG_TEST_DATA[24..]).unwrap();
+        assert_eq!(exif.ifds.len(), 2);
+    }
 
     #[test]
     fn test_parse_ifds() {
         let (remain, ifds) =
             parse_ifds(&EXIF_TEST_DATA, &EXIF_TEST_DATA[4..], Endian::Big).unwrap();
+        assert_eq!(ifds.len(), 2);
+
+        // IFD 0 spot check
+        let field = &ifds[0].fields[3];
+        assert_eq!(field.endian, Endian::Big);
+        assert_eq!(field.tag, tag::RESOLUTION_UNIT);
+        assert_eq!(field.format, format::UNSIGNED_SHORT);
+        assert_eq!(field.components, 1);
+        assert_eq!(field.offset, None);
+        assert_eq!(field.length(), 2);
+        assert_eq!(field.data, Some(vec![0x00, 0x02, 0x00, 0x00]));
+        assert_eq!(field.to_unsigned(), Some(2));
+
+        // IFD 1 spot check
+        let field = &ifds[1].fields[1];
+        assert_eq!(field.tag, tag::JPEG_THUMBNAIL_LENGTH);
+        assert_eq!(field.format, format::UNSIGNED_LONG);
+        assert_eq!(field.components, 1);
+        assert_eq!(field.offset, None);
+        assert_eq!(field.data, Some(vec![0x00, 0x00, 0x02, 0x88]));
+        assert_eq!(field.to_unsigned(), Some(648));
     }
 
     #[test]
@@ -539,16 +558,16 @@ mod tests {
 
     #[test]
     fn test_parse_tiff_version_little_endian() {
-        let (remain, marker) = parse_tiff_version(&[0x24, 0x00], Endian::Little).unwrap();
+        let (remain, marker) = parse_tiff_version(&[0x2A, 0x00], Endian::Little).unwrap();
         assert_eq!(remain, &[]);
-        assert_eq!(marker, 0x24);
+        assert_eq!(marker, TIFF_VERSION);
     }
 
     #[test]
     fn test_parse_tiff_version_big_endian() {
-        let (remain, marker) = parse_tiff_version(&[0x00, 0x24], Endian::Big).unwrap();
+        let (remain, marker) = parse_tiff_version(&[0x00, 0x2A], Endian::Big).unwrap();
         assert_eq!(remain, &[]);
-        assert_eq!(marker, 0x24);
+        assert_eq!(marker, TIFF_VERSION);
     }
 
     #[test]
