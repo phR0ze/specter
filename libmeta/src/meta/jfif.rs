@@ -1,4 +1,5 @@
 use nom::number::streaming as nom_nums;
+use std::fmt::Display;
 
 use crate::errors::JfifError;
 
@@ -70,6 +71,12 @@ impl Jfif {
             y_dimension: y_dimension,
             thumbnail: None,
         })
+    }
+}
+
+impl Display for Jfif {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{:#?}", self)
     }
 }
 

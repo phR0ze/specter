@@ -1,5 +1,6 @@
 use nom::bytes::streaming as nom_bytes;
 use nom::number::streaming as nom_nums;
+use std::fmt::Display;
 
 use super::{Endian, Ifd, IfdField, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN, TIFF_VERSION};
 use crate::errors::{ExifError, ExifErrorKind};
@@ -33,6 +34,14 @@ impl Exif {
         let (_, ifds) = parse_ifds(exif_data, remain, endian)?;
 
         Ok(Self { ifds })
+    }
+}
+
+impl Display for Exif {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Exif {{")?;
+        writeln!(f, "{:#?}", self)?;
+        writeln!(f, "}}")
     }
 }
 

@@ -18,11 +18,12 @@ pub type JpegResult<T> = Result<T, JpegError>;
 pub struct Jpeg {
     pub(crate) segments: Vec<Segment>,
     pub(crate) jfif: Option<Jfif>,
+    pub(crate) exif: Option<Exif>,
 }
 
 impl Jpeg {
     /// Parse all meta data from the given JPEG source.
-    pub fn parse(mut reader: impl io::BufRead) -> JpegResult<Self> {
+    pub fn parse(mut reader: impl io::Read) -> JpegResult<Self> {
         // Check the header to determine the media type
         let mut header = [0u8; 2];
         reader
@@ -36,15 +37,19 @@ impl Jpeg {
         // Parse out the segments
         let segments = parse_segments(&mut reader)?;
 
-        let mut jfif: Option<Jfif> = None;
-        if let Some(segment) = segments.iter().find(|x| x.marker == marker::APP0) {
-            jfif = Some(Jfif::parse(segment.data_as_ref()?)?);
-        }
+        // Create the Jpeg instance
+        let mut jpeg = Jpeg { segments, jfif: None, exif: None };
 
-        Ok(Self {
-            segments,
-            jfif: None,
-        })
+        jpeg.jfif = match jpeg.segments.iter().find(|x| x.marker == marker::APP0) {
+            Some(segment) => Some(Jfif::parse(segment.data_as_ref()?)?),
+            None => None,
+        };
+        jpeg.exif = match jpeg.segments.iter().find(|x| x.marker == marker::APP1) {
+            Some(segment) => Some(Exif::parse(segment.data_as_ref()?)?),
+            None => None,
+        };
+
+        Ok(jpeg)
     }
 
     /// Get the JFIF meta data from the parsed JPEG.
@@ -52,9 +57,14 @@ impl Jpeg {
         self.jfif.as_ref()
     }
 
+    /// Get the Exif meta data from the parsed JPEG.
+    pub fn exif(&self) -> Option<&Exif> {
+        self.exif.as_ref()
+    }
+
     /// Dump meta data segments from the given JPEG source for debugging purposes.
-    pub fn dump_segments(mut reader: impl io::Read) -> Result<(), JpegError> {
-        for segment in parse_segments(&mut reader)? {
+    pub fn dump_segments(&self) -> Result<(), JpegError> {
+        for segment in self.segments.iter() {
             println!("{}", segment);
         }
         Ok(())
@@ -117,10 +127,7 @@ fn parse_segments(mut reader: impl io::Read) -> Result<Vec<Segment>, JpegError> 
                         return Err(JpegError::parse(": segment marker unknown").with_data(remain));
                     }
                 },
-                Err(JpegError {
-                    kind: JpegErrorKind::Truncated,
-                    ..
-                }) => {
+                Err(JpegError { kind: JpegErrorKind::Truncated, .. }) => {
                     get_more_data = true;
                     break;
                 }

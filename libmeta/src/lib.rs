@@ -1,10 +1,10 @@
 pub mod errors;
-mod formats;
-mod meta;
+pub mod formats;
+pub mod meta;
 
 use std::io;
 
-pub use errors::MetaError;
+use errors::MetaError;
 use meta::*;
 
 /// All essential symbols in a simple consumable form

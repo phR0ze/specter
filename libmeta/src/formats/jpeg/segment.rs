@@ -13,11 +13,7 @@ pub(crate) struct Segment {
 }
 impl Segment {
     pub(crate) fn new(marker: [u8; 2], length: u16, data: Option<Vec<u8>>) -> Self {
-        Self {
-            marker,
-            length,
-            data,
-        }
+        Self { marker, length, data }
     }
 
     /// Get the segment data as a reference
@@ -62,7 +58,7 @@ impl Display for Segment {
         for line in self.data.as_ref().unwrap().chunks(10) {
             write!(f, "    ")?;
             for byte in line {
-                write!(f, "{:#04x},", byte)?;
+                write!(f, "{:#04x}, ", byte)?;
             }
             writeln!(f)?;
         }
