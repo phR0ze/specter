@@ -13,21 +13,11 @@ pub struct JfifError {
 
 impl JfifError {
     pub fn new(kind: JfifErrorKind) -> Self {
-        Self {
-            kind: JfifErrorKind::Parse,
-            data: None,
-            msg: None,
-            source: None,
-        }
+        Self { kind, data: None, msg: None, source: None }
     }
 
     fn with_kind(kind: JfifErrorKind) -> Self {
-        Self {
-            kind,
-            data: None,
-            msg: None,
-            source: None,
-        }
+        Self { kind, data: None, msg: None, source: None }
     }
 
     /// Get the error data
@@ -124,9 +114,6 @@ pub enum JfifErrorKind {
 
 #[cfg(test)]
 mod tests {
-    use nom::error::{ErrorKind, ParseError};
-
-    use super::*;
 
     // #[test]
     // fn test_jpeg_use_as_result() {

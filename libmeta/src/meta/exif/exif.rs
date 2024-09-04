@@ -39,9 +39,21 @@ impl Exif {
 
 impl Display for Exif {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Exif {{")?;
-        writeln!(f, "{:#?}", self)?;
-        writeln!(f, "}}")
+        let endian = match self.ifds.first() {
+            Some(ifd) => ifd.endian,
+            None => return Ok(()),
+        };
+        writeln!(f, "  {: <32}: {}", "Exif Byte Order".to_string(), endian)?;
+
+        for ifd in &self.ifds {
+            for field in &ifd.fields {
+                if !field.tag.defunct() {
+                    //writeln!(f, "  {:?}", field)?;
+                    writeln!(f, "  {: <32}: {}", field.tag.to_string(), field.data_to_string())?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -85,7 +97,7 @@ fn parse_ifds<'a>(
 /// * **input** is the full data source from tiff header alignment
 /// * **remain** starts with the ifd field count
 fn parse_ifd<'a>(input: &'a [u8], remain: &'a [u8], endian: Endian) -> ExifResult<(&'a [u8], Ifd)> {
-    let mut ifd = Ifd::default();
+    let mut ifd = Ifd::new(endian);
 
     // Parse out the number of IFD fields to expect
     let (remain, count) = parse_ifd_field_count(remain, endian)?;
@@ -237,19 +249,18 @@ fn parse_ifd_field_count(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u16
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::meta::exif::{format, tag};
-    use crate::{errors::BaseError, formats::jpeg::JPEG_TEST_DATA};
+    use crate::meta::exif::{format, tag, tag::Tag};
+    use crate::{container::JPEG_TEST_DATA, errors::BaseError};
 
     #[test]
     fn test_parse() {
-        let (exif) = Exif::parse(&JPEG_TEST_DATA[24..]).unwrap();
+        let exif = Exif::parse(&JPEG_TEST_DATA[24..]).unwrap();
         assert_eq!(exif.ifds.len(), 2);
     }
 
     #[test]
     fn test_parse_ifds() {
-        let (remain, ifds) =
-            parse_ifds(&EXIF_TEST_DATA, &EXIF_TEST_DATA[4..], Endian::Big).unwrap();
+        let (_, ifds) = parse_ifds(&EXIF_TEST_DATA, &EXIF_TEST_DATA[4..], Endian::Big).unwrap();
         assert_eq!(ifds.len(), 2);
 
         // IFD 0 spot check
@@ -275,8 +286,7 @@ mod tests {
 
     #[test]
     fn test_parse_ifd1() {
-        let (remain, ifd1) =
-            parse_ifd(&EXIF_TEST_DATA, &EXIF_TEST_DATA[176..], Endian::Big).unwrap();
+        let (_, ifd1) = parse_ifd(&EXIF_TEST_DATA, &EXIF_TEST_DATA[176..], Endian::Big).unwrap();
 
         let field0 = &ifd1.fields[0];
         assert_eq!(field0.tag, tag::JPEG_THUMBNAIL_OFFSET);
@@ -297,7 +307,7 @@ mod tests {
 
     #[test]
     fn test_parse_ifd0() {
-        let (remain, ifd0) = parse_ifd(&EXIF_TEST_DATA, &EXIF_TEST_DATA[8..], Endian::Big).unwrap();
+        let (_, ifd0) = parse_ifd(&EXIF_TEST_DATA, &EXIF_TEST_DATA[8..], Endian::Big).unwrap();
 
         let field0 = &ifd0.fields[0];
         assert_eq!(field0.endian, Endian::Big);
@@ -309,9 +319,7 @@ mod tests {
         let offset = field0.offset.unwrap() as usize;
         assert_eq!(
             field0.data,
-            Some(Vec::from(
-                &EXIF_TEST_DATA[offset..offset + field0.length() as usize]
-            ))
+            Some(Vec::from(&EXIF_TEST_DATA[offset..offset + field0.length() as usize]))
         );
         assert_eq!(field0.to_ascii(), Some("Test image".into()));
 
@@ -325,9 +333,7 @@ mod tests {
         let offset = field1.offset.unwrap() as usize;
         assert_eq!(
             field1.data,
-            Some(Vec::from(
-                &EXIF_TEST_DATA[offset..offset + field1.length() as usize]
-            ))
+            Some(Vec::from(&EXIF_TEST_DATA[offset..offset + field1.length() as usize]))
         );
         assert_eq!(field1.to_rational(), Some((72, 1)));
 
@@ -341,9 +347,7 @@ mod tests {
         assert_eq!(field2.length(), 8);
         assert_eq!(
             field2.data,
-            Some(Vec::from(
-                &EXIF_TEST_DATA[offset..offset + field2.length() as usize]
-            ))
+            Some(Vec::from(&EXIF_TEST_DATA[offset..offset + field2.length() as usize]))
         );
         assert_eq!(field2.to_rational(), Some((72, 1)));
 
@@ -367,9 +371,7 @@ mod tests {
         let offset = field4.offset.unwrap() as usize;
         assert_eq!(
             field4.data,
-            Some(Vec::from(
-                &EXIF_TEST_DATA[offset..offset + field4.length() as usize]
-            ))
+            Some(Vec::from(&EXIF_TEST_DATA[offset..offset + field4.length() as usize]))
         );
         assert_eq!(field4.to_ascii(), Some("2016:05:04 03:02:01".into()));
 
@@ -408,7 +410,7 @@ mod tests {
         assert_eq!(remain, &IFD_LE[34..]);
 
         let field = &ifd.fields[0];
-        assert_eq!(field.tag, 282);
+        assert_eq!(field.tag, Tag::from(282));
         assert_eq!(field.format, 5);
         assert_eq!(field.components, 1);
         assert_eq!(field.offset, Some(34));
@@ -416,7 +418,7 @@ mod tests {
         assert_eq!(field.data, Some(Vec::from(&IFD_LE[34..])));
 
         let field = &ifd.fields[1];
-        assert_eq!(field.tag, 34665);
+        assert_eq!(field.tag, Tag::from(34665));
         assert_eq!(field.format, 4);
         assert_eq!(field.components, 1);
         assert_eq!(field.offset, None);
@@ -442,7 +444,7 @@ mod tests {
         assert_eq!(remain, &data[22..]);
 
         let field = &ifd.fields[0];
-        assert_eq!(field.tag, 270);
+        assert_eq!(field.tag, Tag::from(270));
         assert_eq!(field.format, 2);
         assert_eq!(field.components, 5);
         assert_eq!(field.length(), 5);
@@ -465,7 +467,7 @@ mod tests {
 
         let (remain, ifd) = parse_ifd_field(data, &data[10..], Endian::Big).unwrap();
         assert_eq!(remain, &data[22..]);
-        assert_eq!(ifd.tag, 270);
+        assert_eq!(ifd.tag, Tag::from(270));
         assert_eq!(ifd.format, 2);
         assert_eq!(ifd.components, 5);
         assert_eq!(ifd.length(), 5);
@@ -477,7 +479,7 @@ mod tests {
     fn test_parse_ifd_field_little_endian() {
         let (remain, ifd) = parse_ifd_field(&IFD_LE, &IFD_LE[10..], Endian::Little).unwrap();
         assert_eq!(remain, &IFD_LE[22..]);
-        assert_eq!(ifd.tag, 282);
+        assert_eq!(ifd.tag, Tag::from(282));
         assert_eq!(ifd.format, 5);
         assert_eq!(ifd.components, 1);
         assert_eq!(ifd.length(), 8);
@@ -489,10 +491,7 @@ mod tests {
     fn test_parse_ifd_field_count_not_enough_data() {
         let err = parse_ifd_field_count(&[0xFF], Endian::Big).unwrap_err();
         assert_eq!(err.to_string(), "Exif parse failed: IFD field count");
-        assert_eq!(
-            err.source_to_string(),
-            "nom::Parsing requires 1 bytes/chars"
-        );
+        assert_eq!(err.source_to_string(), "nom::Parsing requires 1 bytes/chars");
     }
 
     #[test]
@@ -520,20 +519,14 @@ mod tests {
         ];
 
         let err = parse_ifd_field(data, data, Endian::Big).unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "Exif parse failed: IFD field offset is negative"
-        );
+        assert_eq!(err.to_string(), "Exif parse failed: IFD field offset is negative");
     }
 
     #[test]
     fn test_parse_ifd_offset_not_enough_data() {
         let err = parse_ifd_data_or_offset(&[0xFF], Endian::Big).unwrap_err();
         assert_eq!(err.to_string(), "Exif parse failed: IFD data or offset");
-        assert_eq!(
-            err.source_to_string(),
-            "nom::Parsing requires 3 bytes/chars"
-        );
+        assert_eq!(err.source_to_string(), "nom::Parsing requires 3 bytes/chars");
     }
 
     #[test]
@@ -559,10 +552,7 @@ mod tests {
     fn test_parse_tiff_version_not_enough_data() {
         let err = parse_tiff_version(&[0xFF], Endian::Big).unwrap_err();
         assert_eq!(err.to_string(), "Exif parse failed: TIFF version");
-        assert_eq!(
-            err.source_to_string(),
-            "nom::Parsing requires 1 bytes/chars"
-        );
+        assert_eq!(err.source_to_string(), "nom::Parsing requires 1 bytes/chars");
     }
 
     #[test]

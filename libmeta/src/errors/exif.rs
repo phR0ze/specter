@@ -13,21 +13,11 @@ pub struct ExifError {
 
 impl ExifError {
     pub fn new() -> Self {
-        Self {
-            kind: ExifErrorKind::Parse,
-            data: None,
-            msg: None,
-            source: None,
-        }
+        Self { kind: ExifErrorKind::Parse, data: None, msg: None, source: None }
     }
 
     fn with_kind(kind: ExifErrorKind) -> Self {
-        Self {
-            kind,
-            data: None,
-            msg: None,
-            source: None,
-        }
+        Self { kind, data: None, msg: None, source: None }
     }
 
     /// Get the error data
@@ -131,9 +121,6 @@ pub enum ExifErrorKind {
 
 #[cfg(test)]
 mod tests {
-    use nom::error::{ErrorKind, ParseError};
-
-    use super::*;
 
     // #[test]
     // fn test_jpeg_use_as_result() {

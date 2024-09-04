@@ -1,41 +1,115 @@
-use std::io::{self, Read};
-
-use super::{Exif, Jfif, Kind};
-use crate::{
-    errors::{DataError, MetaError},
-    formats::{jpeg, jpeg::Jpeg},
+use std::{
+    cell::{Ref, RefCell},
+    fmt::Display,
+    io::{self, Read},
+    ops::Deref,
 };
+
+use crate::{
+    container::{Container, Jpeg},
+    errors::MetaError,
+};
+
+use super::{Exif, Jfif};
+
+/// Simplify the Exif return type slightly
+pub type MetaResult<T> = Result<T, MetaError>;
 
 /// Meta provides encapsulation for the different metadata types that can be parsed
 /// out of a variety of media types.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct Meta {
-    //exif: Option<Exif>,
-    // Itpc
-    //jfif: Option<Jfif>,
-    // Xmp
-    kind: Kind,
+    container: Option<Container>,
+    jfif: RefCell<Option<Jfif>>,
+    exif: RefCell<Option<Exif>>,
 }
 
 impl Meta {
+    /// Private default constructor
+    fn default() -> Self {
+        Self { container: None, jfif: RefCell::new(None), exif: RefCell::new(None) }
+    }
+
     /// Discover the media type and create a new instance based on that type
-    pub fn parse<T: io::BufRead + io::Seek>(reader: &mut T) -> Result<Self, MetaError> {
+    pub(crate) fn parse(mut reader: impl io::Read) -> MetaResult<Self> {
         let mut header = Vec::new();
         reader.by_ref().take(2).read_to_end(&mut header)?;
 
-        // Check the header to determine the media type
-        if jpeg::is_jpeg(&header) {
-            let jpeg = Jpeg::parse(header.chain(reader))?;
-            Ok(Self { kind: Kind::Jpeg })
+        // Create a new instance based on the media type
+        let mut meta = Self::default();
+        if Jpeg::is_jpeg(&header) {
+            meta.container = Some(Container::Jpeg(Jpeg::parse(header.chain(reader))?));
+
+            // TODO: run this only as needed
+            meta.cache_jfif();
+            meta.cache_exif();
+
+            Ok(meta)
         } else {
             Err(MetaError::unknown_header(&header))
         }
     }
 
-    /// Return the kind of media file were working with
-    pub fn kind(&self) -> Kind {
-        self.kind
+    /// Is the meta data type from a JPEG container
+    pub(crate) fn is_jpeg(&self) -> bool {
+        match self.container {
+            Some(Container::Jpeg(_)) => true,
+            _ => false,
+        }
+    }
+
+    /// Get the JFIF meta data if it exists from the JPEG source and cache it
+    fn cache_jfif(&self) -> Option<MetaResult<()>> {
+        match &self.container {
+            Some(Container::Jpeg(jpeg)) => match jpeg.jfif() {
+                Some(jfif) => match jfif {
+                    Ok(jfif) => {
+                        self.jfif.borrow_mut().replace(jfif);
+                        Some(Ok(()))
+                    }
+                    Err(e) => Some(Err(e.into())),
+                },
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Get the Exif meta data if it exists from the JPEG source and cache it
+    fn cache_exif(&self) -> Option<MetaResult<()>> {
+        match &self.container {
+            Some(Container::Jpeg(jpeg)) => match jpeg.exif() {
+                Some(exif) => match exif {
+                    Ok(exif) => {
+                        self.exif.borrow_mut().replace(exif);
+                        Some(Ok(()))
+                    }
+                    Err(e) => Some(Err(e.into())),
+                },
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+}
+
+impl Display for Meta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "  {: <32}: {}", "libmeta Version".to_string(), crate::VERSION)?;
+        if let Some(Container::Jpeg(_)) = &self.container {
+            writeln!(f, "  {: <32}: {}", "File Type".to_string(), "JPEG".to_string())?;
+        } else {
+            writeln!(f, "  {: <32}: {}", "File Type".to_string(), "None".to_string())?;
+        }
+
+        if let Some(ref jfif) = *self.jfif.borrow() {
+            writeln!(f, "{}", jfif)?;
+        }
+        if let Some(ref exif) = *self.exif.borrow() {
+            writeln!(f, "{}", exif)?;
+        }
+        Ok(())
     }
 }
 
@@ -45,9 +119,9 @@ mod tests {
 
     #[test]
     fn test_meta_parse_header_is_valid_jpeg() {
-        let mut header = io::Cursor::new([jpeg::marker::HEADER, jpeg::marker::SOS].concat());
+        let mut header = io::Cursor::new([0xFF, 0xD8, 0xFF, 0xDA]);
         let meta = Meta::parse(&mut header).unwrap();
-        assert_eq!(meta.kind(), Kind::Jpeg);
+        assert_eq!(meta.is_jpeg(), true);
     }
 
     #[test]

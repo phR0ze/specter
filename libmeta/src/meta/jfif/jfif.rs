@@ -1,30 +1,12 @@
 use nom::number::streaming as nom_nums;
 use std::fmt::Display;
 
+use super::density::DensityUnit;
 use crate::errors::JfifError;
 
 const JFIF_IDENTIFIER: [u8; 4] = [0x4A, 0x46, 0x49, 0x46];
 
-/// Jfif Density Units
-#[derive(Debug, Clone, PartialEq)]
-pub enum DensityUnit {
-    PixelsPerInch,
-    PixelsPerCm,
-    None,
-    Unknown,
-}
-impl From<u8> for DensityUnit {
-    fn from(value: u8) -> Self {
-        match value {
-            0x00 => Self::None,
-            0x01 => Self::PixelsPerInch,
-            0x02 => Self::PixelsPerCm,
-            _ => Self::Unknown,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Jfif {
     pub(crate) major: u8,                  // major version
     pub(crate) minor: u8,                  // minor version
@@ -76,7 +58,11 @@ impl Jfif {
 
 impl Display for Jfif {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{:#?}", self)
+        writeln!(f, "  {: <32}: {}.{:0>2}", "JFIF Version".to_string(), self.major, self.minor)?;
+        writeln!(f, "  {: <32}: {}", "X Resolution".to_string(), self.x_density)?;
+        writeln!(f, "  {: <32}: {}", "Y Resolution".to_string(), self.y_density)?;
+        write!(f, "  {: <32}: {}", "Resolution Unit".to_string(), self.density)?;
+        Ok(())
     }
 }
 

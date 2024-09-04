@@ -1,6 +1,6 @@
-use std::{error::Error, fmt, path::Path};
+use std::{error::Error, fmt};
 
-use super::{BaseError, ContextError, ExifError, JfifError};
+use super::{BaseError, ContextError};
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -66,7 +66,6 @@ pub enum DataErrorKind {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test_cast_error() {

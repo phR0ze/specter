@@ -12,15 +12,32 @@ pub(crate) struct Segment {
     pub(crate) data: Option<Vec<u8>>, // JPEG segment data
 }
 impl Segment {
-    pub(crate) fn new(marker: [u8; 2], length: u16, data: Option<Vec<u8>>) -> Self {
+    fn new(marker: [u8; 2], length: u16, data: Option<Vec<u8>>) -> Self {
         Self { marker, length, data }
     }
 
-    /// Get the segment data as a reference
-    pub(crate) fn data_as_ref(&self) -> Result<&Vec<u8>, JpegError> {
-        match self.data {
-            Some(ref data) => Ok(data),
-            _ => Err(JpegError::operation(": segment data not available")),
+    /// Parse out a segment. A segment has the following structure left to right:
+    /// * (1 byte)  Marker prefix e.g `0xFF`
+    /// * (1 byte)  Marker Number e.g. `0xE0`
+    /// * (2 bytes) Data size, including 2 size bytes, in Big Endian e.g. e.g 0x00 0x10 = 14 bytes
+    pub(crate) fn parse(input: &[u8]) -> Result<(&[u8], Segment), JpegError> {
+        let (remain, marker) = parse_marker(input)?;
+
+        // Match marker and parse the corresponding segment type
+        match marker {
+            // Parse segments with data
+            marker::APP0 | marker::APP1 | marker::DQT | marker::SOF | marker::DHT | marker::DRI => {
+                let (remain, length) = parse_length(remain)?;
+                let (remain, data) = parse_data(remain, length)?;
+                Ok((remain, Segment::new(marker, length, Some(data))))
+            }
+
+            // Parse segments with no data.
+            // SOS actually has data but we don't care about the image data for metadata parsing
+            marker::SOS => Ok((remain, Segment::new(marker, 0, None))),
+
+            // Unknown segment
+            _ => Err(JpegError::parse(": segment marker unknown").with_data(&marker)),
         }
     }
 
@@ -66,31 +83,6 @@ impl Display for Segment {
     }
 }
 
-/// Parse out a segment. A segment has the following structure left to right:
-/// * (1 byte)  Marker prefix e.g `0xFF`
-/// * (1 byte)  Marker Number e.g. `0xE0`
-/// * (2 bytes) Data size, including 2 size bytes, in Big Endian e.g. e.g 0x00 0x10 = 14 bytes
-pub(crate) fn parse(input: &[u8]) -> Result<(&[u8], Segment), JpegError> {
-    let (remain, marker) = parse_marker(input)?;
-
-    // Match marker and parse the corresponding segment type
-    match marker {
-        // Parse segments with data
-        marker::APP0 | marker::APP1 | marker::DQT | marker::SOF | marker::DHT | marker::DRI => {
-            let (remain, length) = parse_length(remain)?;
-            let (remain, data) = parse_data(remain, length)?;
-            Ok((remain, Segment::new(marker, length, Some(data))))
-        }
-
-        // Parse segments with no data.
-        // SOS actually has data but we don't care about the image data for metadata parsing
-        marker::SOS => Ok((remain, Segment::new(marker, 0, None))),
-
-        // Unknown segment
-        _ => Err(JpegError::parse(": segment marker unknown").with_data(&marker)),
-    }
-}
-
 // Parse out a JPEG segment marker which is a 2 byte value consisting of:
 // * (1 byte) magic hex value `0xFF`
 // * (1 byte) number e.g. `0xE0`
@@ -124,7 +116,7 @@ mod tests {
 
     #[test]
     fn test_parse_marker_unknown() {
-        let err = parse(&[0xff, 0xe9]).unwrap_err();
+        let err = Segment::parse(&[0xff, 0xe9]).unwrap_err();
         assert_eq!(
             err.to_string(),
             JpegError::parse(": segment marker unknown")
@@ -135,22 +127,19 @@ mod tests {
 
     #[test]
     fn test_parse_ask_for_more_data() {
-        let err = parse(&[]).unwrap_err();
+        let err = Segment::parse(&[]).unwrap_err();
         assert_eq!(
             err.to_string(),
             JpegError::truncated()
                 .with_msg(": segment marker")
                 .to_string()
         );
-        assert_eq!(
-            err.source_to_string(),
-            "nom::Parsing requires 1 bytes/chars"
-        );
+        assert_eq!(err.source_to_string(), "nom::Parsing requires 1 bytes/chars");
     }
 
     #[test]
     fn test_parse_exif_success() {
-        let (_, segment) = parse(&JPEG_TEST_DATA[20..]).unwrap();
+        let (_, segment) = Segment::parse(&JPEG_TEST_DATA[20..]).unwrap();
         assert_eq!(segment.marker, marker::APP1);
         assert_eq!(segment.length, 860);
         assert_eq!(segment.data.unwrap().len(), 860);
@@ -158,7 +147,7 @@ mod tests {
 
     #[test]
     fn test_parse_segment_jfif_success() {
-        let (remain, segment) = parse(&JPEG_TEST_DATA[2..20]).unwrap();
+        let (remain, segment) = Segment::parse(&JPEG_TEST_DATA[2..20]).unwrap();
         assert_eq!(remain, &[]);
         assert_eq!(segment.marker, marker::APP0);
         assert_eq!(segment.data.unwrap(), &JPEG_TEST_DATA[6..20]);
@@ -173,10 +162,7 @@ mod tests {
                 .with_msg(": segment data")
                 .to_string()
         );
-        assert_eq!(
-            err.source_to_string(),
-            "nom::Parsing requires 1 bytes/chars"
-        );
+        assert_eq!(err.source_to_string(), "nom::Parsing requires 1 bytes/chars");
     }
 
     #[test]
@@ -195,10 +181,7 @@ mod tests {
                 .with_msg(": segment length")
                 .to_string()
         );
-        assert_eq!(
-            err.source_to_string(),
-            "nom::Parsing requires 2 bytes/chars"
-        );
+        assert_eq!(err.source_to_string(), "nom::Parsing requires 2 bytes/chars");
     }
 
     #[test]
@@ -224,9 +207,6 @@ mod tests {
                 .with_msg(": segment marker")
                 .to_string()
         );
-        assert_eq!(
-            err.source_to_string(),
-            "nom::Parsing requires 1 bytes/chars"
-        );
+        assert_eq!(err.source_to_string(), "nom::Parsing requires 1 bytes/chars");
     }
 }

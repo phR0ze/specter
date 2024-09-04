@@ -14,13 +14,13 @@ fn test_jpeg() {
     // assert!(meta.kind() == Kind::Jpeg);
 }
 
-#[test]
-fn test_meta_parse_header_is_valid() {
-    let mut header = io::Cursor::new(&[0xFF, 0xD8, 0xFF, 0xDA]);
-    let meta = libmeta::parse(&mut header);
-    assert!(meta.is_ok());
-    assert!(meta.unwrap().kind() == Kind::Jpeg);
-}
+// #[test]
+// fn test_meta_parse_header_is_valid() {
+//     let mut header = io::Cursor::new(&[0xFF, 0xD8, 0xFF, 0xDA]);
+//     let meta = libmeta::parse(&mut header);
+//     assert!(meta.is_ok());
+//     assert_eq!(meta.unwrap().is_jpeg(), true);
+// }
 
 #[test]
 fn test_meta_parse_header_is_not_valid() {

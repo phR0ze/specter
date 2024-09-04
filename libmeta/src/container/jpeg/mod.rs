@@ -2,7 +2,12 @@
 // of the file for a specific purpose e.g. start of the image data, end of the image data, app specific
 // segments etc...
 mod jpeg;
-pub(crate) mod marker;
+mod marker;
 mod segment;
+mod test_data;
 
-pub use jpeg::*;
+pub(crate) use jpeg::Jpeg;
+
+// Expose testing data to other modules
+#[cfg(test)]
+pub(crate) use test_data::JPEG_TEST_DATA;

@@ -1,7 +1,5 @@
 use std::{env, fs::File, path::Path};
 
-use libmeta::prelude::*;
-
 fn main() -> anyhow::Result<()> {
     env::set_var("RUST_BACKTRACE", "0"); // Disable backtrace
 
@@ -16,14 +14,7 @@ fn main() -> anyhow::Result<()> {
     let f = File::open(Path::new(args[1].as_str()))?;
 
     // 3. Parse the file and pretty print the output
-    let jpeg = Jpeg::parse(f)?;
-    //jpeg.dump_segments()?;
-    if let Some(jfif) = jpeg.jfif() {
-        println!("{}", jfif);
-    }
-    if let Some(exif) = jpeg.exif() {
-        println!("{}", exif);
-    }
+    println!("{}", libmeta::parse(f)?);
 
     Ok(())
 }

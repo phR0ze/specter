@@ -1,7 +1,5 @@
 use std::{error::Error, fmt, io};
 
-use crate::Meta;
-
 use super::{ContextError, JpegError};
 
 #[derive(Debug)]
@@ -14,11 +12,7 @@ pub struct MetaError {
 
 impl MetaError {
     pub fn unknown_header(data: &[u8]) -> Self {
-        Self {
-            data: data.into(),
-            kind: MetaErrorKind::UnknownHeader,
-            source: None,
-        }
+        Self { data: data.into(), kind: MetaErrorKind::UnknownHeader, source: None }
     }
 }
 

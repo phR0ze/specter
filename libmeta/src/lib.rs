@@ -1,11 +1,12 @@
+mod container;
 pub mod errors;
-pub mod formats;
-pub mod meta;
+mod meta;
 
 use std::io;
 
-use errors::MetaError;
 use meta::*;
+
+pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// All essential symbols in a simple consumable form
 ///
@@ -14,19 +15,18 @@ use meta::*;
 /// use libmeta::prelude::*;
 /// ```
 pub mod prelude {
+    //pub use crate::container::*;
     pub use crate::errors::*;
-    pub use crate::formats::*;
-    pub use crate::meta::*;
+    //pub use crate::meta::*;
 }
 
 /// Create a new meta data instance for the given media stream
-pub fn parse<T: io::BufRead + io::Seek>(reader: &mut T) -> Result<Meta, MetaError> {
+pub fn parse(reader: impl io::Read) -> MetaResult<Meta> {
     Meta::parse(reader)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test_parse() {

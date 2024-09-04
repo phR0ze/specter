@@ -1,6 +1,4 @@
 // JPEG Markers
-use crate::errors::JpegError;
-
 pub(crate) const PREFIX: u8 = 0xFF; // JPEG marker prefix
 pub(crate) const HEADER: [u8; 2] = [0xFF, 0xD8]; // Start of any JPEG file
 pub(crate) const SOF: [u8; 2] = [0xFF, 0xC0]; // Start of frame
