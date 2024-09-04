@@ -1,7 +1,7 @@
 use super::{
     format,
     tag::{self, Tag},
-    Endian, Orientation, YCbCrPositioning,
+    Endian, Orientation, ResolutionUnit, YCbCrPositioning,
 };
 
 /// Represents an IFD tag in cluding its identifier, format, number of components, and data.
@@ -118,26 +118,36 @@ impl IfdField {
 
     /// Convert the data type into a human readable string
     pub(crate) fn data_to_string(&self) -> String {
-        match match self.format {
-            // format::UNSIGNED_BYTE => self.to_unsigned().map(|v| v.to_string()),
-            format::ASCII_STRING => self.to_ascii(),
-            format::UNSIGNED_SHORT => match self.tag {
-                tag::ORIENTATION => self.to_unsigned().map(|x| Orientation::from(x).to_string()),
-                tag::Y_CB_CR_POSITIONING => self
-                    .to_unsigned()
-                    .map(|x| YCbCrPositioning::from(x).to_string()),
-                _ => self.to_unsigned().map(|x| x.to_string()),
+        // Try by tag type
+        match match self.tag {
+            tag::RESOLUTION_UNIT => self
+                .to_unsigned()
+                .map(|x| ResolutionUnit::from(x).to_string()),
+
+            // Try by format type
+            _ => match self.format {
+                // format::UNSIGNED_BYTE => self.to_unsigned().map(|v| v.to_string()),
+                format::ASCII_STRING => self.to_ascii(),
+                format::UNSIGNED_SHORT => match self.tag {
+                    tag::ORIENTATION => {
+                        self.to_unsigned().map(|x| Orientation::from(x).to_string())
+                    }
+                    tag::Y_CB_CR_POSITIONING => self
+                        .to_unsigned()
+                        .map(|x| YCbCrPositioning::from(x).to_string()),
+                    _ => self.to_unsigned().map(|x| x.to_string()),
+                },
+                // format::UNSIGNED_LONG => self.to_unsigned().map(|v| v.to_string()),
+                // format::UNSIGNED_RATIONAL => self.to_rational().map(|(n, d)| format!("{}/{}", n, d)),
+                // format::SIGNED_BYTE => self.to_unsigned().map(|v| v.to_string()),
+                // format::UNDEFINED => self.to_unsigned().map(|v| v.to_string()),
+                // format::SIGNED_SHORT => self.to_unsigned().map(|v| v.to_string()),
+                // format::SIGNED_LONG => self.to_unsigned().map(|v| v.to_string()),
+                // format::SIGNED_RATIONAL => self.to_rational().map(|(n, d)| format!("{}/{}", n, d)),
+                // format::SINGLE_FLOAT => self.to_unsigned().map(|v| v.to_string()),
+                // format::DOUBLE_FLOAT => self.to_unsigned().map(|v| v.to_string()),
+                _ => None,
             },
-            // format::UNSIGNED_LONG => self.to_unsigned().map(|v| v.to_string()),
-            // format::UNSIGNED_RATIONAL => self.to_rational().map(|(n, d)| format!("{}/{}", n, d)),
-            // format::SIGNED_BYTE => self.to_unsigned().map(|v| v.to_string()),
-            // format::UNDEFINED => self.to_unsigned().map(|v| v.to_string()),
-            // format::SIGNED_SHORT => self.to_unsigned().map(|v| v.to_string()),
-            // format::SIGNED_LONG => self.to_unsigned().map(|v| v.to_string()),
-            // format::SIGNED_RATIONAL => self.to_rational().map(|(n, d)| format!("{}/{}", n, d)),
-            // format::SINGLE_FLOAT => self.to_unsigned().map(|v| v.to_string()),
-            // format::DOUBLE_FLOAT => self.to_unsigned().map(|v| v.to_string()),
-            _ => None,
         } {
             Some(x) => x,
             None => "Unknown".to_string(),

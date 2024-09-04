@@ -16,7 +16,7 @@ pub struct Jpeg {
 
 impl Jpeg {
     /// Parse all meta data from the given JPEG source.
-    pub fn parse(mut reader: impl io::Read) -> JpegResult<Self> {
+    pub(crate) fn parse(mut reader: impl io::Read) -> JpegResult<Self> {
         // Check the header to determine the media type
         let mut header = [0u8; 2];
         reader
@@ -34,7 +34,7 @@ impl Jpeg {
     }
 
     /// Dump meta data segments from the given JPEG source for debugging purposes.
-    pub fn dump_segments(&self) -> Result<(), JpegError> {
+    pub(crate) fn dump_segments(&self) -> Result<(), JpegError> {
         for segment in self.segments.iter() {
             println!("{}", segment);
         }
@@ -42,7 +42,7 @@ impl Jpeg {
     }
 
     // Determine if the given header is from a jpeg source
-    pub fn is_jpeg(header: &[u8]) -> bool {
+    pub(crate) fn is_jpeg(header: &[u8]) -> bool {
         header.starts_with(&marker::HEADER)
     }
 
@@ -158,7 +158,7 @@ fn parse_segments(mut reader: impl io::Read) -> Result<Vec<Segment>, JpegError> 
 mod tests {
     use super::*;
     use crate::container::JPEG_TEST_DATA;
-    use crate::meta::jfif;
+    use crate::meta::jfif::DensityUnit;
 
     #[test]
     fn test_parse() {
@@ -169,7 +169,7 @@ mod tests {
         let jfif = jpeg.jfif().unwrap().unwrap();
         assert_eq!(jfif.major, 1);
         assert_eq!(jfif.minor, 1);
-        assert_eq!(jfif.density, jfif::DensityUnit::PixelsPerInch);
+        assert_eq!(jfif.density, DensityUnit::PixelsPerInch);
         assert_eq!(jfif.x_density, 72);
         assert_eq!(jfif.y_density, 72);
         assert_eq!(jfif.x_dimension, 0);

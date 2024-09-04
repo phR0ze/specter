@@ -4,17 +4,14 @@ const chunk_len: usize = 10; // Use 4096 bytes or 4KB buffer in production
 
 /// Stream bytes from the media source.
 /// Data accumulates until acked by the caller.
-pub struct Stream<'a> {
+pub(crate) struct Stream<'a> {
     buffer: Vec<u8>, // Vec<T> is similar to Box<[T]> i.e. owned pointer to heap
     reader: &'a mut dyn io::BufRead,
 }
 
 impl<'a> Stream<'a> {
-    pub fn new(reader: &'a mut impl io::BufRead) -> Self {
-        Self {
-            buffer: Vec::with_capacity(chunk_len),
-            reader,
-        }
+    pub(crate) fn new(reader: &'a mut impl io::BufRead) -> Self {
+        Self { buffer: Vec::with_capacity(chunk_len), reader }
     }
 
     /// Read at most `buffer.len()` bytes into the buffer.
@@ -22,7 +19,7 @@ impl<'a> Stream<'a> {
     /// * May return less than the buffer length if eof is reached.
     /// * Retries on io::ErrorKind::Interrupted automatically.
     /// * Returns the number of bytes read.  
-    pub fn read_at_most(&mut self, buffer: &mut [u8]) -> Result<usize, io::Error> {
+    pub(crate) fn read_at_most(&mut self, buffer: &mut [u8]) -> Result<usize, io::Error> {
         let mut count: usize = 0;
         loop {
             match self.reader.read(&mut buffer[count..]) {
@@ -37,7 +34,7 @@ impl<'a> Stream<'a> {
             };
         }
     }
-    pub fn data(&self) -> Option<Result<&[u8], io::Error>> {
+    pub(crate) fn data(&self) -> Option<Result<&[u8], io::Error>> {
         Some(Ok(&self.buffer))
     }
 }

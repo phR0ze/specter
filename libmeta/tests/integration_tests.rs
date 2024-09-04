@@ -2,17 +2,13 @@ use libmeta::prelude::*;
 
 use std::{fs::File, io, path::Path};
 
-#[test]
-fn test_jpeg() {
-    // let f = File::open(Path::new("tests/images/nikon-e950.jpg")).unwrap();
-    // let mut buf = io::BufReader::new(f);
-    // let meta = libmeta::parse(&mut buf);
-    // assert!(meta.is_ok());
-    // let meta = meta.unwrap();
-
-    // // Ensure the file was detected properly
-    // assert!(meta.kind() == Kind::Jpeg);
-}
+// #[test]
+// fn test_jpeg() {
+//     let f = File::open(Path::new("../../temp/TinyEXIF/Samples/exif.jpg")).unwrap();
+//     let meta = libmeta::parse(f);
+//     assert!(meta.is_ok());
+//     println!("{}", meta.unwrap());
+// }
 
 // #[test]
 // fn test_meta_parse_header_is_valid() {

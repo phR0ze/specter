@@ -7,8 +7,8 @@ pub(crate) mod file;
 pub(crate) mod jfif;
 
 // Surface types from modules directly in the meta module
-pub(crate) use exif::Exif;
+pub(crate) use exif::*;
 pub(crate) use file::File;
-pub(crate) use jfif::Jfif;
+pub(crate) use jfif::*;
 pub(crate) use meta::*;
 pub(crate) use stream::*;

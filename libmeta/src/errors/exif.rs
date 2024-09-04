@@ -12,10 +12,7 @@ pub struct ExifError {
 }
 
 impl ExifError {
-    pub fn new() -> Self {
-        Self { kind: ExifErrorKind::Parse, data: None, msg: None, source: None }
-    }
-
+    /// Create a new error with the given kind
     fn with_kind(kind: ExifErrorKind) -> Self {
         Self { kind, data: None, msg: None, source: None }
     }

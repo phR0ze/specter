@@ -13,7 +13,7 @@ pub struct ContextError {
 
 impl ContextError {
     /// Convert the given error into an `ContextError` or chain of `ContextError`s
-    pub fn from<T: Error>(prefix: &str, err: T) -> Self {
+    pub(crate) fn from<T: Error>(prefix: &str, err: T) -> Self {
         let under = Self {
             prefix: prefix.into(),
             msg: err.to_string(),

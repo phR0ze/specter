@@ -3,6 +3,7 @@ mod field;
 mod format;
 mod ifd;
 mod orientation;
+mod resolution;
 mod y_cb_cr_coefficients;
 
 // Surface module directly
@@ -15,6 +16,7 @@ pub(crate) use exif::*;
 pub(crate) use field::*;
 pub(crate) use ifd::*;
 pub(crate) use orientation::*;
+pub(crate) use resolution::*;
 pub(crate) use y_cb_cr_coefficients::*;
 
 const EXIF_IDENTIFIER: [u8; 4] = [0x45, 0x78, 0x69, 0x66];

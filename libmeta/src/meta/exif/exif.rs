@@ -48,7 +48,7 @@ impl Display for Exif {
         for ifd in &self.ifds {
             for field in &ifd.fields {
                 if !field.tag.defunct() {
-                    //writeln!(f, "  {:?}", field)?;
+                    writeln!(f, "\n  {:?}", field)?;
                     writeln!(f, "  {: <32}: {}", field.tag.to_string(), field.data_to_string())?;
                 }
             }

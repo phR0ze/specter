@@ -11,7 +11,7 @@ pub struct MetaError {
 }
 
 impl MetaError {
-    pub fn unknown_header(data: &[u8]) -> Self {
+    pub(crate) fn unknown_header(data: &[u8]) -> Self {
         Self { data: data.into(), kind: MetaErrorKind::UnknownHeader, source: None }
     }
 }
