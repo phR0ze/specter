@@ -9,6 +9,7 @@ mod y_cb_cr_coefficients;
 // Surface module directly
 pub(crate) mod exif;
 pub(crate) mod tag;
+pub(crate) mod test_data;
 
 // Surface types from modules directly in the meta module
 pub(crate) use endian::*;

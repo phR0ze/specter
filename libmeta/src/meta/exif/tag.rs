@@ -9,10 +9,10 @@ impl Tag {
         Self(tag)
     }
 
-    /// Return true if the tag is defunct and should be ignored.
-    pub(crate) fn defunct(&self) -> bool {
+    /// Return true if the tag isn't useful for display
+    pub(crate) fn no_display(&self) -> bool {
         match self {
-            &X_RESOLUTION | &Y_RESOLUTION => true,
+            &EXIF_SUB_IFD_OFFSET | &X_RESOLUTION | &Y_RESOLUTION => true,
             _ => false,
         }
     }
@@ -51,8 +51,8 @@ impl Display for Tag {
                 &SOFTWARE => "Software",
                 &DATE_TIME => "Date Time",
                 &WHITE_POINT => "White Point",
-                &JPEG_THUMBNAIL_OFFSET => "JPEG Thumbnail Offset",
-                &JPEG_THUMBNAIL_LENGTH => "JPEG Thumbnail Length",
+                &THUMBNAIL_OFFSET => "Thumbnail Offset",
+                &THUMBNAIL_LENGTH => "Thumbnail Length",
                 &PRIMARY_CHROMATICITIES => "Primary Chromaticities",
                 &Y_CB_CR_COEFFICIENTS => "Y Cb Cr Coefficients",
                 &Y_CB_CR_POSITIONING => "Y Cb Cr Positioning",
@@ -126,6 +126,7 @@ pub(crate) const MAKE: Tag = Tag(0x010F);
 /// * **Format**: ASCII string
 pub(crate) const MODEL: Tag = Tag(0x0110);
 
+///
 pub(crate) const STRIP_OFFSETS: Tag = Tag(0x0111);
 
 /// Shows orientation of the camera
@@ -141,14 +142,14 @@ pub(crate) const STRIP_OFFSETS: Tag = Tag(0x0111);
 /// * **Components**: 1
 pub(crate) const ORIENTATION: Tag = Tag(0x0112);
 
-/// Shows resolution of the X axis, often 1/72, but this really has no meaning as computers don't
-/// use this value for display.
+/// Shows resolution of the X axis, often 72/1 i.e. 72 pixels per inch, but this really has
+/// no meaning as computers don't use this value for display.
 /// * **Format**: Unsigned rational
 /// * **Components**: 1
 pub(crate) const X_RESOLUTION: Tag = Tag(0x011A);
 
-/// Shows resolution of the Y axis, often 1/72, but this really has no meaning as computers don't
-/// use this value for display.
+/// Shows resolution of the Y axis, often 72/1 i.e. 72 pixels per inch, but this really has
+/// no meaning as computers don't use this value for display.
 /// * **Format**: Unsigned rational
 /// * **Components**: 1
 pub(crate) const Y_RESOLUTION: Tag = Tag(0x011B);
@@ -183,19 +184,19 @@ pub(crate) const WHITE_POINT: Tag = Tag(0x013E);
 /// * **Components**: 6
 pub(crate) const PRIMARY_CHROMATICITIES: Tag = Tag(0x013F);
 
-/// JPEG Thumbnail offset
+/// Thumbnail offset
 /// * Data format is ordinary JPEG starting from 0xFFD8 and ending by 0xFFD9
 /// * Typically the recommended thumbnail size is 160x120 for Exif 2.1 or later
 /// * **Format**: Unsigned long
 /// * **Components**: 1
-pub(crate) const JPEG_THUMBNAIL_OFFSET: Tag = Tag(0x0201);
+pub(crate) const THUMBNAIL_OFFSET: Tag = Tag(0x0201);
 
-/// JPEG Thumbnail length in bytes
+/// Thumbnail length in bytes
 /// * Data format is ordinary JPEG starting from 0xFFD8 and ending by 0xFFD9
 /// * Typically the recommended thumbnail size is 160x120 for Exif 2.1 or later
 /// * **Format**: Unsigned long
 /// * **Components**: 1
-pub(crate) const JPEG_THUMBNAIL_LENGTH: Tag = Tag(0x0202);
+pub(crate) const THUMBNAIL_LENGTH: Tag = Tag(0x0202);
 
 /// When image format is YCbCr, this value shows a constant to translate it to RGB format. In usual, values are '0.299/0.587/0.114'.
 /// * **Format**: Unsigned rational
@@ -248,8 +249,8 @@ pub(crate) const EXPOSURE_PROGRAM: Tag = Tag(0x8822);
 pub(crate) const ISO_SPEED_RATINGS: Tag = Tag(0x8827);
 
 /// Exif version number.
-/// * Stored as 4bytes of ASCII character (like "0210")
-/// * **Format**: ASCII string
+/// * Stored as 4bytes of ASCII character (e.g. "0210")
+/// * **Format**: Undefined but turns out to be ASCII string
 /// * **Components**: 4
 pub(crate) const EXIF_VERSION: Tag = Tag(0x9000);
 
