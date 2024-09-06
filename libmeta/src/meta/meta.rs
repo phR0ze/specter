@@ -32,7 +32,12 @@ impl Meta {
     }
 
     /// Discover the media type and create a new instance based on that type
-    pub(crate) fn parse(mut reader: impl io::Read) -> MetaResult<Self> {
+    pub(crate) fn parse<T: io::BufRead + io::Seek>(mut reader: T) -> MetaResult<Self> {
+        // TODO:
+        // * read some larger amount for magic file header testing
+        // * try file extension if header is not recognized needed
+        // * scan file for JPEG/TIFF markers?
+        // * split out container types as separate features?
         let mut header = Vec::new();
         reader.by_ref().take(2).read_to_end(&mut header)?;
 
@@ -97,15 +102,15 @@ impl Meta {
 impl Display for Meta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "  {: <32}: {}", "libmeta Version".to_string(), crate::VERSION)?;
-        if let Some(Container::Jpeg(_)) = &self.container {
-            writeln!(f, "  {: <32}: {}", "File Type".to_string(), "JPEG".to_string())?;
-        } else {
-            writeln!(f, "  {: <32}: {}", "File Type".to_string(), "None".to_string())?;
-        }
+        // if let Some(Container::Jpeg(_)) = &self.container {
+        //     writeln!(f, "  {: <32}: {}", "File Type".to_string(), "JPEG".to_string())?;
+        // } else {
+        //     writeln!(f, "  {: <32}: {}", "File Type".to_string(), "None".to_string())?;
+        // }
 
-        if let Some(ref jfif) = *self.jfif.borrow() {
-            writeln!(f, "{}", jfif)?;
-        }
+        // if let Some(ref jfif) = *self.jfif.borrow() {
+        //     writeln!(f, "{}", jfif)?;
+        // }
         if let Some(ref exif) = *self.exif.borrow() {
             writeln!(f, "{}", exif)?;
         }
@@ -116,11 +121,12 @@ impl Display for Meta {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::container::JPEG_TEST_DATA;
 
     #[test]
     fn test_meta_parse_header_is_valid_jpeg() {
-        let mut header = io::Cursor::new([0xFF, 0xD8, 0xFF, 0xDA]);
-        let meta = Meta::parse(&mut header).unwrap();
+        let mut data = io::Cursor::new(&JPEG_TEST_DATA);
+        let meta = Meta::parse(&mut data).unwrap();
         assert_eq!(meta.is_jpeg(), true);
     }
 

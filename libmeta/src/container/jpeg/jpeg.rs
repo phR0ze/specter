@@ -1,9 +1,11 @@
+use nom::{bytes::streaming as nom_bytes, error::Error as NomError, number::streaming as nom_nums};
 use std::io::{self, prelude::*};
 
 use super::{marker, segment::Segment};
 use crate::{
     errors::{JpegError, JpegErrorKind},
     meta::{Exif, Jfif},
+    slice,
 };
 
 /// Simplify the Exif return type slightly
@@ -16,13 +18,14 @@ pub struct Jpeg {
 
 impl Jpeg {
     /// Parse all meta data from the given JPEG source.
-    pub(crate) fn parse(mut reader: impl io::Read) -> JpegResult<Self> {
+    pub(crate) fn parse<T: io::BufRead>(mut reader: T) -> JpegResult<Self> {
         // Check the header to determine the media type
-        let mut header = [0u8; 2];
+        let mut header = Vec::new();
         reader
             .by_ref()
-            .read_exact(&mut header)
-            .map_err(|x| JpegError::read_failed().with_io_source(x))?;
+            .take(2)
+            .read_to_end(&mut header)
+            .map_err(|x| JpegError::read_failed(": invalid header").with_io_source(x))?;
         if !Self::is_jpeg(&header) {
             return Err(JpegError::parse(": invalid header"));
         }
@@ -34,7 +37,7 @@ impl Jpeg {
     }
 
     /// Dump meta data segments from the given JPEG source for debugging purposes.
-    pub(crate) fn dump_segments(&self) -> Result<(), JpegError> {
+    pub(crate) fn dump_segments(&self) -> JpegResult<()> {
         for segment in self.segments.iter() {
             println!("{}", segment);
         }
@@ -75,80 +78,54 @@ impl Jpeg {
     }
 }
 
-/// Parse out all the segments for the given JPEG source.
-fn parse_segments(mut reader: impl io::Read) -> Result<Vec<Segment>, JpegError> {
+/// Parse out all the meta data related segments for the given JPEG source.
+/// A segment has the following structure left to right:
+/// * (1 byte)  Marker prefix e.g `0xFF`
+/// * (1 byte)  Marker Number e.g. `0xE0`
+/// * (2 bytes) Data size, including 2 size bytes, in Big Endian e.g. e.g 0x00 0x10 = 14 bytes
+fn parse_segments(mut reader: impl io::BufRead) -> JpegResult<Vec<Segment>> {
     let mut segments = Vec::new();
 
-    let chunk_len = 10;
-
-    // Loop over the source reading chunks of data and parse it into segments.
-    // * Progressively load more data until all segments are parsed, but bail before
-    //   reading the actual image data to avoid the unnecessary overhead.
-    // * Break out into a multi-threaded approach later for performance, maybe?
-    //   Highest performance option is to use a single thread to read data in chunks in
-    //   a loop until all segments are parsed and image data is detected then abort.
-    //   Meanwhile a worker thread is spawned to parse the segmments in parallel.
-    let mut end_of_meta_data = false;
-    let mut get_more_data = false;
-    let mut buffer: Vec<u8> = Vec::with_capacity(4096); // rust std use 8k for most things
-    let mut i = 0; // unacked start
-    let mut j = 0; // unacked length
     loop {
-        // Defensively discard unrecognized bytes up to next marker in an attempt to recover
-        // from a corrupt JPEG source. Note: read_until will also discard the target value.
-        // reader.read_until(JPEG_MARKER_PREFIX, &mut Vec::new());
-
-        // Read the next chunk of data and store it in the buffer
-        let mut buf: Vec<u8> = Vec::with_capacity(chunk_len);
-        match reader.by_ref().take(chunk_len as u64).read_to_end(&mut buf) {
-            Ok(0) => end_of_meta_data = true,
-            Err(e) => return Err(JpegError::read_failed().with_io_source(e)),
-            _ => (),
-        }
-        j += buf.len();
-        buffer.extend_from_slice(&buf);
-        get_more_data = false;
-
-        // Loop parsing all segements switching on APP segment header
-        loop {
-            match Segment::parse(&buffer[i..i + j]) {
-                Ok((remain, segment)) => match segment.marker {
-                    marker::APP0 | marker::APP1 => {
-                        segments.push(segment);
-                        i += j - remain.len();
-                        j = remain.len();
-                    }
-                    marker::DQT | marker::SOF | marker::DHT | marker::DRI => {
-                        i += j - remain.len();
-                        j = remain.len();
-                    }
-                    marker::SOS => {
-                        // last segment before image data so break out
-                        end_of_meta_data = true;
-                        break;
-                    }
-                    _ => {
-                        return Err(JpegError::parse(": segment marker unknown").with_data(remain));
-                    }
-                },
-                Err(JpegError { kind: JpegErrorKind::Truncated, .. }) => {
-                    get_more_data = true;
-                    break;
-                }
-                Err(e) => {
-                    return Err(JpegError::new().wrap(e));
-                }
-            }
-        }
-
-        // End of metadata i.e. no more data in file or hit SOS
-        if end_of_meta_data {
-            if get_more_data {
-                // If more data is still needed it must be truncated JPEG source
-                return Err(JpegError::truncated());
-            }
+        // Defensively consume up to the marker incase the JPEG source is corrupted
+        if !slice::skip_until(&mut reader, marker::PREFIX)
+            .map_err(|e| JpegError::read_failed(": segment marker search").with_io_source(e))?
+        {
             break;
         }
+
+        // Read out the segment marker
+        let marker = slice::read_u8(&mut reader)
+            .map(|v| [0xFF, v])
+            .map_err(|e| JpegError::read_failed(": segment marker").with_io_source(e))?;
+
+        match marker {
+            // Parse meta data related segments
+            marker::APP0 | marker::APP1 => {
+                // Parse out a JPEG segment length, 2 bytes in Big Endian format including
+                // 2 size bytes. Thus a length of `0x00 0x10` would be length 14 not 16.
+                let len = slice::read_be_u16(&mut reader)
+                    .map_err(|e| JpegError::read_failed(": segment length").with_io_source(e))?;
+                if len < 2 {
+                    return Err(JpegError::parse(": segment length too short"));
+                }
+                let len = len - 2;
+
+                // Parse out the segment data
+                let data = slice::read_bytes(&mut reader, len as usize)
+                    .map_err(|e| JpegError::read_failed(": segment data").with_io_source(e))?;
+
+                segments.push(Segment::new(marker, len, Some(data)));
+            }
+
+            // Stop when we hit a non meta data marker
+            _ => break,
+        }
+    }
+
+    // Nothing was found
+    if segments.is_empty() {
+        return Err(JpegError::parse(": no segments found"));
     }
 
     Ok(segments)
@@ -158,6 +135,7 @@ fn parse_segments(mut reader: impl io::Read) -> Result<Vec<Segment>, JpegError> 
 mod tests {
     use super::*;
     use crate::container::JPEG_TEST_DATA;
+    use crate::errors::BaseError;
     use crate::meta::jfif::DensityUnit;
 
     #[test]
@@ -184,24 +162,66 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_exif_success() {
+        let segments = parse_segments(&JPEG_TEST_DATA[20..]).unwrap();
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].marker, marker::APP1);
+        assert_eq!(segments[0].length, 860);
+        assert_eq!(segments[0].data.as_ref().unwrap().len(), 860);
+    }
+
+    #[test]
+    fn test_parse_data_not_enough_data() {
+        let err = parse_segments(&mut &JPEG_TEST_DATA[2..19]).unwrap_err();
+        assert_eq!(err.to_string(), JpegError::read_failed(": segment data").to_string());
+        assert_eq!(err.source_to_string(), "io::Error: failed to fill whole buffer");
+    }
+
+    #[test]
+    fn test_parse_length_ask_for_more_data() {
+        let err = parse_segments(&mut &JPEG_TEST_DATA[2..4]).unwrap_err();
+        assert_eq!(err.to_string(), JpegError::read_failed(": segment length").to_string());
+        assert_eq!(err.source_to_string(), "io::Error: failed to fill whole buffer");
+    }
+
+    #[test]
+    fn test_parse_jfif_segment_success() {
+        let segments = parse_segments(&mut &JPEG_TEST_DATA[2..20]).unwrap();
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].marker, marker::APP0);
+        assert_eq!(segments[0].length, 14);
+        assert_eq!(segments[0].data, Some(JPEG_TEST_DATA[6..20].to_vec()));
+    }
+
+    #[test]
+    fn test_parse_marker_not_enough_data() {
+        let data = [];
+        let err = parse_segments(&mut &data[..]).unwrap_err();
+        assert_eq!(err.to_string(), JpegError::parse(": no segments found").to_string());
+
+        let err = parse_segments(&mut &JPEG_TEST_DATA[2..3]).unwrap_err();
+        assert_eq!(err.to_string(), JpegError::read_failed(": segment marker").to_string());
+        assert_eq!(err.source_to_string(), "io::Error: failed to fill whole buffer");
+    }
+
+    #[test]
     fn test_parse_segments() {
-        let mut data = io::Cursor::new(&JPEG_TEST_DATA[2..]);
-        let segments = parse_segments(&mut data).unwrap();
+        let segments = parse_segments(&mut &JPEG_TEST_DATA[2..]).unwrap();
         assert_eq!(segments.len(), 2);
     }
 
     #[test]
     fn test_parse_not_enough_data() {
-        let mut data = io::Cursor::new(marker::HEADER);
-        let err = Jpeg::parse(&mut data).unwrap_err();
-        assert_eq!(err.to_string(), JpegError::truncated().to_string());
+        let data = marker::HEADER;
+        let err = Jpeg::parse(&mut &data[..]).unwrap_err();
+        assert_eq!(err.to_string(), JpegError::parse(": no segments found").to_string());
     }
 
     #[test]
     fn test_parse_header_invalid() {
-        let mut header = io::Cursor::new([0xFF, 0x00]);
+        let data = [0xFF, 0x00];
         assert_eq!(
-            Jpeg::parse(&mut header).unwrap_err().to_string(),
+            Jpeg::parse(&mut &data[..]).unwrap_err().to_string(),
             JpegError::parse(": invalid header").to_string()
         );
     }

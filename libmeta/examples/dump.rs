@@ -1,4 +1,4 @@
-use std::{env, fs::File, path::Path};
+use std::{env, fs::File, io::BufReader, path::Path};
 
 fn main() -> anyhow::Result<()> {
     env::set_var("RUST_BACKTRACE", "0"); // Disable backtrace
@@ -14,7 +14,7 @@ fn main() -> anyhow::Result<()> {
     let f = File::open(Path::new(args[1].as_str()))?;
 
     // 3. Parse the file and pretty print the output
-    println!("{}", libmeta::parse(f)?);
+    println!("{}", libmeta::parse(BufReader::new(f))?);
 
     Ok(())
 }

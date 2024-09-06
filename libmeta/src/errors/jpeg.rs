@@ -12,42 +12,28 @@ pub struct JpegError {
 }
 
 impl JpegError {
-    pub(crate) fn new() -> Self {
-        Self {
-            kind: JpegErrorKind::Parse,
-            data: None,
-            msg: None,
-            source: None,
-        }
-    }
-
-    fn with_kind(kind: JpegErrorKind) -> Self {
-        Self {
-            kind,
-            data: None,
-            msg: None,
-            source: None,
-        }
+    pub(crate) fn new(kind: JpegErrorKind) -> Self {
+        Self { kind, data: None, msg: None, source: None }
     }
 
     /// Create a new error for a failed operation
     pub fn operation<T: AsRef<str>>(msg: T) -> Self {
-        JpegError::with_kind(JpegErrorKind::Operation).with_msg(msg)
+        JpegError::new(JpegErrorKind::Operation).with_msg(msg)
     }
 
     /// Create a new error for a failed operation
     pub fn parse<T: AsRef<str>>(msg: T) -> Self {
-        JpegError::with_kind(JpegErrorKind::Parse).with_msg(msg)
+        JpegError::new(JpegErrorKind::Parse).with_msg(msg)
     }
 
     /// Create a new error for not enough data
     pub(crate) fn truncated() -> Self {
-        JpegError::with_kind(JpegErrorKind::Truncated)
+        JpegError::new(JpegErrorKind::Truncated)
     }
 
     /// Create a new error for a read failure
-    pub(crate) fn read_failed() -> Self {
-        JpegError::with_kind(JpegErrorKind::ReadFailed)
+    pub fn read_failed<T: AsRef<str>>(msg: T) -> Self {
+        JpegError::new(JpegErrorKind::ReadFailed).with_msg(msg)
     }
 
     /// Add additional error data for output with the error message
@@ -136,13 +122,19 @@ impl AsRef<dyn Error> for JpegError {
 
 impl From<JfifError> for JpegError {
     fn from(e: JfifError) -> Self {
-        JpegError::new().wrap(e)
+        JpegError::new(JpegErrorKind::Parse).wrap(e)
     }
 }
 
 impl From<ExifError> for JpegError {
     fn from(e: ExifError) -> Self {
-        JpegError::new().wrap(e)
+        JpegError::new(JpegErrorKind::Parse).wrap(e)
+    }
+}
+
+impl From<io::Error> for JpegError {
+    fn from(e: io::Error) -> Self {
+        JpegError::new(JpegErrorKind::ReadFailed).wrap(e)
     }
 }
 
@@ -177,18 +169,9 @@ mod tests {
     fn test_segment_marker_invalid_with_data_and_source() {
         let err = JpegError::parse(": segment marker invalid")
             .with_data(&[0x00, 0x01])
-            .with_source(
-                "nom::",
-                nom::error::Error::from_error_kind(1, ErrorKind::Tag),
-            );
-        assert_eq!(
-            err.to_string(),
-            "JPEG parse failed: segment marker invalid [00, 01]"
-        );
-        assert_eq!(
-            err.as_ref().source().unwrap().to_string(),
-            "nom::error Tag at: 1"
-        );
+            .with_source("nom::", nom::error::Error::from_error_kind(1, ErrorKind::Tag));
+        assert_eq!(err.to_string(), "JPEG parse failed: segment marker invalid [00, 01]");
+        assert_eq!(err.as_ref().source().unwrap().to_string(), "nom::error Tag at: 1");
     }
 
     #[test]
@@ -196,10 +179,7 @@ mod tests {
         let err = JpegError::parse(": segment marker invalid")
             .with_data(&[0x00, 0x01])
             .with_io_source(io::Error::from(io::ErrorKind::NotFound));
-        assert_eq!(
-            err.to_string(),
-            "JPEG parse failed: segment marker invalid [00, 01]"
-        );
+        assert_eq!(err.to_string(), "JPEG parse failed: segment marker invalid [00, 01]");
         if let Some(err) = err.source {
             assert_eq!(err.to_string(), "io::Error: entity not found");
         }

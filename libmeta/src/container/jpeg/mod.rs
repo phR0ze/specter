@@ -6,7 +6,7 @@ mod marker;
 mod segment;
 mod test_data;
 
-pub(crate) use jpeg::Jpeg;
+pub(crate) use jpeg::*;
 
 // Expose testing data to other modules
 #[cfg(test)]

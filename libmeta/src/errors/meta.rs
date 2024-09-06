@@ -1,6 +1,6 @@
 use std::{error::Error, fmt, io};
 
-use super::{ContextError, JpegError};
+use super::{BaseError, ContextError, JpegError};
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -9,6 +9,8 @@ pub struct MetaError {
     pub kind: MetaErrorKind,
     source: Option<MetaErrorSource>,
 }
+
+impl BaseError for MetaError {}
 
 impl MetaError {
     pub(crate) fn unknown_header(data: &[u8]) -> Self {

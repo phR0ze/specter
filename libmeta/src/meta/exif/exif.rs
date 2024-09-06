@@ -38,11 +38,11 @@ impl Exif {
 
 impl Display for Exif {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let endian = match self.ifds.first() {
-            Some(ifd) => ifd.endian,
-            None => return Ok(()),
-        };
-        writeln!(f, "  {: <32}: {}", "Exif Byte Order".to_string(), endian)?;
+        // let endian = match self.ifds.first() {
+        //     Some(ifd) => ifd.endian,
+        //     None => return Ok(()),
+        // };
+        // writeln!(f, "  {: <32}: {}", "Exif Byte Order".to_string(), endian)?;
 
         for ifd in &self.ifds {
             for field in &ifd.fields {

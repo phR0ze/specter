@@ -1,14 +1,19 @@
 use libmeta::prelude::*;
 
-use std::{fs::File, io, path::Path};
+use std::{
+    fs::File,
+    io::{self, BufReader},
+    path::Path,
+};
 
-// #[test]
-// fn test_jpeg() {
-//     let f = File::open(Path::new("../../temp/TinyEXIF/Samples/exif.jpg")).unwrap();
-//     let meta = libmeta::parse(f);
-//     assert!(meta.is_ok());
-//     println!("{}", meta.unwrap());
-// }
+#[test]
+fn test_jpeg() {
+    let f =
+        File::open(Path::new("../../temp/TinyEXIF/Samples/0007f2e26768eac8fe6b2f4d7c3c3dd0.jpg"))
+            .unwrap();
+    let meta = libmeta::parse(BufReader::new(f));
+    println!("{}", meta.unwrap());
+}
 
 // #[test]
 // fn test_meta_parse_header_is_valid() {

@@ -5,6 +5,7 @@ mod stream;
 pub(crate) mod exif;
 pub(crate) mod file;
 pub(crate) mod jfif;
+pub(crate) mod slice;
 
 // Surface types from modules directly in the meta module
 pub(crate) use exif::*;

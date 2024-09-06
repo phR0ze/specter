@@ -12,7 +12,7 @@ impl Tag {
     /// Return true if the tag isn't useful for display
     pub(crate) fn no_display(&self) -> bool {
         match self {
-            &EXIF_SUB_IFD_OFFSET | &X_RESOLUTION | &Y_RESOLUTION => true,
+            &EXIF_SUB_IFD_OFFSET => true,
             _ => false,
         }
     }

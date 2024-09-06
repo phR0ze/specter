@@ -12,6 +12,7 @@ use super::{
 /// Represents an IFD tag in cluding its identifier, format, number of components, and data.
 #[derive(Debug, Clone)]
 pub(crate) struct IfdField {
+    // TODO: track display type?
     pub(crate) endian: Endian,        // byte order
     pub(crate) tag: Tag,              // identifier
     pub(crate) format: u16,           // data format
@@ -244,9 +245,10 @@ impl IfdField {
                 format::UNSIGNED_BYTE => self.to_unsigned().map(|v| v.to_string()),
                 format::UNSIGNED_SHORT => self.to_unsigned().map(|v| v.to_string()),
                 format::UNSIGNED_LONG => self.to_unsigned().map(|v| v.to_string()),
-                format::UNSIGNED_RATIONAL => {
-                    self.to_rational().map(|(n, d)| format!("{}/{}", n, d))
-                }
+                format::UNSIGNED_RATIONAL => self.to_rational().map(|(n, d)| match d {
+                    1 => format!("{}", n), // common understanding is out of 1
+                    _ => format!("{}/{}", n, d),
+                }),
                 format::SIGNED_BYTE => self.to_signed().map(|v| v.to_string()),
                 format::SIGNED_SHORT => self.to_signed().map(|v| v.to_string()),
                 format::SIGNED_LONG => self.to_signed().map(|v| v.to_string()),

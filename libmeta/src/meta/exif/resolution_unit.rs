@@ -29,7 +29,7 @@ impl From<u8> for ResolutionUnit {
 impl Display for ResolutionUnit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ResolutionUnit::PixelsPerInch => write!(f, "inches"),
+            ResolutionUnit::PixelsPerInch => write!(f, "inch"),
             ResolutionUnit::PixelsPerCm => write!(f, "cm"),
             ResolutionUnit::None => write!(f, "none"),
             ResolutionUnit::Unknown => write!(f, "unknown"),

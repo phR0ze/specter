@@ -30,7 +30,7 @@ impl From<u8> for DensityUnit {
 impl Display for DensityUnit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DensityUnit::PixelsPerInch => write!(f, "inches"),
+            DensityUnit::PixelsPerInch => write!(f, "inch"),
             DensityUnit::PixelsPerCm => write!(f, "cm"),
             DensityUnit::None => write!(f, "none"),
             DensityUnit::Unknown => write!(f, "unknown"),

@@ -21,7 +21,7 @@ pub mod prelude {
 }
 
 /// Create a new meta data instance for the given media stream
-pub fn parse(reader: impl io::Read) -> MetaResult<Meta> {
+pub fn parse<T: io::BufRead + io::Seek>(reader: T) -> MetaResult<Meta> {
     Meta::parse(reader)
 }
 
