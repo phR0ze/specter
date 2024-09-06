@@ -15,7 +15,7 @@ pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// use libmeta::prelude::*;
 /// ```
 pub mod prelude {
-    //pub use crate::container::*;
+    pub use crate::container::*;
     pub use crate::errors::*;
     //pub use crate::meta::*;
 }

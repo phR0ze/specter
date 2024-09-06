@@ -1,11 +1,28 @@
 use std::fmt;
 
 use super::Jpeg;
+use crate::{Exif, MetaResult};
 
 #[derive(Debug)]
 pub enum Container {
     Jpeg(Jpeg),
     None,
+}
+
+impl Container {
+    /// Get the Exif meta data if it exists from the JPEG source and cache it
+    pub(crate) fn parse_exif(&self) -> Option<MetaResult<Exif>> {
+        match self {
+            Container::Jpeg(jpeg) => match jpeg.exif() {
+                Some(exif) => match exif {
+                    Ok(exif) => Some(Ok(exif)),
+                    Err(e) => Some(Err(e.into())),
+                },
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 }
 
 impl Default for Container {

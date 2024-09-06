@@ -1,4 +1,11 @@
-use std::{env, fs::File, io::BufReader, path::Path};
+use std::{
+    env,
+    fs::File,
+    io::{BufReader, Write},
+    path::Path,
+};
+
+use libmeta::prelude::*;
 
 fn main() -> anyhow::Result<()> {
     env::set_var("RUST_BACKTRACE", "0"); // Disable backtrace
@@ -15,6 +22,10 @@ fn main() -> anyhow::Result<()> {
 
     // 3. Parse the file and pretty print the output
     println!("{}", libmeta::parse(BufReader::new(f))?);
+    // let jpeg = Jpeg::parse(BufReader::new(f))?;
+    //let mut out = File::create("output.txt")?;
+    //write!(out, "{}", jpeg)?;
+    //println!("{}", Jpeg::parse(BufReader::new(f))?);
 
     Ok(())
 }

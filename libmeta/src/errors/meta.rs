@@ -21,9 +21,9 @@ impl MetaError {
 impl fmt::Display for MetaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
-            MetaErrorKind::Read => write!(f, "metadata file read failed")?,
-            MetaErrorKind::Jpeg => write!(f, "metadata jpeg failed")?,
-            MetaErrorKind::UnknownHeader => write!(f, "metadata unknown header")?,
+            MetaErrorKind::Read => write!(f, "Meta file read failed")?,
+            MetaErrorKind::Jpeg => write!(f, "Meta jpeg parse failed")?,
+            MetaErrorKind::UnknownHeader => write!(f, "Meta unknown header")?,
         };
 
         // Display additional error data if available
@@ -101,7 +101,7 @@ mod tests {
     fn test_unknown_header() {
         assert_eq!(
             MetaError::unknown_header(&[0xFF, 0xD8]).to_string(),
-            "metadata unknown header [ff, d8]"
+            "Meta unknown header [ff, d8]"
         );
     }
 }

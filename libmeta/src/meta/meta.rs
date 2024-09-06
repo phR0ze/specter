@@ -1,8 +1,7 @@
 use std::{
-    cell::{Ref, RefCell},
+    cell::RefCell,
     fmt::Display,
     io::{self, Read},
-    ops::Deref,
 };
 
 use crate::{
@@ -47,8 +46,12 @@ impl Meta {
             meta.container = Some(Container::Jpeg(Jpeg::parse(header.chain(reader))?));
 
             // TODO: run this only as needed
-            meta.cache_jfif();
-            meta.cache_exif();
+            if let Some(Err(e)) = meta.cache_jfif() {
+                return Err(e);
+            }
+            if let Some(Err(e)) = meta.cache_exif() {
+                return Err(e);
+            }
 
             Ok(meta)
         } else {
@@ -83,8 +86,8 @@ impl Meta {
 
     /// Get the Exif meta data if it exists from the JPEG source and cache it
     fn cache_exif(&self) -> Option<MetaResult<()>> {
-        match &self.container {
-            Some(Container::Jpeg(jpeg)) => match jpeg.exif() {
+        if let Some(cont) = &self.container {
+            match cont.parse_exif() {
                 Some(exif) => match exif {
                     Ok(exif) => {
                         self.exif.borrow_mut().replace(exif);
@@ -93,8 +96,9 @@ impl Meta {
                     Err(e) => Some(Err(e.into())),
                 },
                 _ => None,
-            },
-            _ => None,
+            }
+        } else {
+            None
         }
     }
 }
@@ -134,7 +138,7 @@ mod tests {
     fn test_meta_parse_not_enough_data() {
         let mut header = io::Cursor::new(&[0xFF]);
         let err = Meta::parse(&mut header).unwrap_err();
-        assert_eq!(err.to_string(), "metadata unknown header [ff]");
+        assert_eq!(err.to_string(), "Meta unknown header [ff]");
     }
 
     #[test]
@@ -143,7 +147,7 @@ mod tests {
         let mut header = io::Cursor::new(&[0xFF, 0x00]);
         assert_eq!(
             Meta::parse(&mut header).unwrap_err().to_string(),
-            "metadata unknown header [ff, 00]"
+            "Meta unknown header [ff, 00]"
         );
     }
 }

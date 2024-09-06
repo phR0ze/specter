@@ -120,18 +120,6 @@ impl AsRef<dyn Error> for JpegError {
     }
 }
 
-impl From<JfifError> for JpegError {
-    fn from(e: JfifError) -> Self {
-        JpegError::new(JpegErrorKind::Parse).wrap(e)
-    }
-}
-
-impl From<ExifError> for JpegError {
-    fn from(e: ExifError) -> Self {
-        JpegError::new(JpegErrorKind::Parse).wrap(e)
-    }
-}
-
 impl From<io::Error> for JpegError {
     fn from(e: io::Error) -> Self {
         JpegError::new(JpegErrorKind::ReadFailed).wrap(e)

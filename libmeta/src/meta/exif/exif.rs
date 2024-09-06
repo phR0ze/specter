@@ -1,3 +1,4 @@
+use nom::bytes::streaming as nom_bytes;
 use nom::number::streaming as nom_nums;
 use std::fmt::Display;
 
@@ -69,8 +70,8 @@ fn parse_ifds<'a>(
     let mut outer = remain;
     loop {
         // Parse the IFD offset or end of IFDs
-        let (inner, offset) = match parse_ifd_data_or_offset(outer, endian) {
-            Ok((inner, _, offset)) => (inner, offset as usize),
+        let (inner, offset) = match parse_ifd_offset(outer, endian) {
+            Ok((inner, offset)) => (inner, offset as usize),
             Err(e) => match e.kind() {
                 ExifErrorKind::OffsetIsZero => break,
                 _ => return Err(e),
@@ -98,24 +99,28 @@ fn parse_ifds<'a>(
     Ok((outer, ifds))
 }
 
-/// Parse out a 4 byte values as either raw data bytes in big endian or an offset
-/// Returns: (remaining bytes, data bytes, offset)
-pub(crate) fn parse_ifd_data_or_offset(
-    input: &[u8],
-    endian: Endian,
-) -> ExifResult<(&[u8], [u8; 4], u32)> {
+/// Parse out a 4 byte value as raw data
+/// Returns: (remaining bytes, data bytes)
+pub(crate) fn parse_ifd_data(input: &[u8]) -> ExifResult<(&[u8], &[u8])> {
+    nom_bytes::take(4 as usize)(input)
+        .map_err(|x| ExifError::parse(": IFD data").with_nom_source(x))
+}
+
+/// Parse out a 4 byte values as an offset
+/// Returns: (remaining bytes, offset)
+pub(crate) fn parse_ifd_offset(input: &[u8], endian: Endian) -> ExifResult<(&[u8], u32)> {
     let (remain, offset) = match endian {
         Endian::Big => nom_nums::be_u32(input),
         Endian::Little => nom_nums::le_u32(input),
     }
-    .map_err(|x| ExifError::parse(": IFD data or offset").with_nom_source(x))?;
+    .map_err(|x| ExifError::parse(": IFD offset").with_nom_source(x))?;
 
     // Used as a trigger to stop parsing IFDs
     if offset == 0 {
         return Err(ExifError::offset_zero());
     }
 
-    Ok((remain, offset.to_be_bytes(), offset))
+    Ok((remain, offset))
 }
 
 /// Parse the Exif header: 6 bytes `4578 6966 0000` => `Exif` and 2 bytes of padding 0000
@@ -144,7 +149,7 @@ fn parse_tiff_endian(input: &[u8]) -> ExifResult<(&[u8], Endian)> {
 }
 
 /// (2 bytes) Parse the TIFF IFD 0 marker, always 2A00 or 0024
-/// * Marker will always be returned in Big Endian format
+/// * Marker will always be returned in Big Endian format i.e. 0024
 /// * Returns: (remaining bytes, marker)
 fn parse_tiff_version(input: &[u8], endian: Endian) -> ExifResult<(&[u8], [u8; 2])> {
     let (remain, marker) = match endian {
@@ -208,28 +213,25 @@ mod tests {
 
     #[test]
     fn test_parse_ifd_offset_not_enough_data() {
-        let err = parse_ifd_data_or_offset(&[0xFF], Endian::Big).unwrap_err();
-        assert_eq!(err.to_string(), "Exif parse failed: IFD data or offset");
+        let err = parse_ifd_offset(&[0xFF], Endian::Big).unwrap_err();
+        assert_eq!(err.to_string(), "Exif parse failed: IFD offset");
         assert_eq!(err.source_to_string(), "nom::Parsing requires 3 bytes/chars");
     }
 
     #[test]
-    fn test_parse_ifd_data_or_offset_little_endian() {
-        let mut input = [0x24, 0x00, 0x00, 0x00];
-        let (remain, data, offset) = parse_ifd_data_or_offset(&input, Endian::Little).unwrap();
+    fn test_parse_ifd_offset_little_endian() {
+        let input = [0x24, 0x00, 0x00, 0x00];
+        let (remain, offset) = parse_ifd_offset(&input, Endian::Little).unwrap();
         assert_eq!(remain, &[]);
-        input.reverse();
-        assert_eq!(data, input);
         assert_eq!(offset, 0x24);
     }
 
     #[test]
-    fn test_parse_ifd_data_or_offset_big_endian() {
+    fn test_parse_ifd_offset_big_endian() {
         let input = [0x00, 0x00, 0x00, 0x24];
-        let (remain, data, offset) = parse_ifd_data_or_offset(&input, Endian::Big).unwrap();
+        let (remain, data) = parse_ifd_data(&input).unwrap();
         assert_eq!(remain, &[]);
-        assert_eq!(data, input);
-        assert_eq!(offset, 0x24);
+        assert_eq!(data, [0x00, 0x00, 0x00, 0x24]);
     }
 
     #[test]

@@ -1,3 +1,6 @@
+// Exiftool Tag definitions are an invaluable source
+// https://exiftool.org/TagNames/EXIF.html
+
 use std::fmt::Display;
 
 /// Tag uses the New Type pattern to provide some helper functions for Tags.
@@ -11,10 +14,11 @@ impl Tag {
 
     /// Return true if the tag isn't useful for display
     pub(crate) fn no_display(&self) -> bool {
-        match self {
-            &EXIF_SUB_IFD_OFFSET => true,
-            _ => false,
-        }
+        // match self {
+        //     &EXIF_SUB_IFD_OFFSET => true,
+        //     _ => false,
+        // }
+        false
     }
 }
 
@@ -36,63 +40,88 @@ impl Display for Tag {
             f,
             "{}",
             match self {
-                &IMAGE_WIDTH => "Image Width",
-                &IMAGE_HEIGHT => "Image Height",
-                &BITS_PER_SAMPLE => "Bits Per Sample",
-                &COMPRESSION => "Compression",
-                &PHOTOMETRIC_INTERPRETATION => "Photometric Interpretation",
-                &IMAGE_DESCRIPTION => "Image Description",
-                &MAKE => "Make",
-                &MODEL => "Model",
-                &ORIENTATION => "Orientation",
-                &X_RESOLUTION => "X Resolution",
-                &Y_RESOLUTION => "Y Resolution",
-                &RESOLUTION_UNIT => "Resolution Unit",
-                &SOFTWARE => "Software",
-                &DATE_TIME => "Date Time",
-                &WHITE_POINT => "White Point",
-                &THUMBNAIL_OFFSET => "Thumbnail Offset",
-                &THUMBNAIL_LENGTH => "Thumbnail Length",
-                &PRIMARY_CHROMATICITIES => "Primary Chromaticities",
-                &Y_CB_CR_COEFFICIENTS => "Y Cb Cr Coefficients",
-                &Y_CB_CR_POSITIONING => "Y Cb Cr Positioning",
-                &REFERENCE_BLACK_WHITE => "Reference Black White",
-                &COPYRIGHT => "Copyright",
-                &EXPOSURE_TIME => "Exposure Time",
-                &F_NUMBER => "F Number",
-                &EXIF_SUB_IFD_OFFSET => "Exif Offset",
-                &EXPOSURE_PROGRAM => "Exposure Program",
-                &ISO_SPEED_RATINGS => "ISO Speed Ratings",
-                &EXIF_VERSION => "Exif Version",
-                &DATE_TIME_ORIGINAL => "Date Time Original",
-                &DATE_TIME_DIGITIZED => "Date Time Digitized",
-                &COMPONENT_CONFIGURATION => "Component Configuration",
-                &COMPRESSED_BITS_PER_PIXEL => "Compressed Bits Per Pixel",
-                &SHUTTER_SPEED_VALUE => "Shutter Speed Value",
-                &APEX_APERTURE_VALUE => "Apex Aperture Value",
-                &BRIGHTNESS_VALUE => "Brightness Value",
-                &EXPOSURE_BIAS_VALUE => "Exposure Bias Value",
-                &MAX_APERTURE_VALUE => "Max Aperture Value",
-                &SUBJECT_DISTANCE => "Subject Distance",
-                &METERING_MODE => "Metering Mode",
-                &LIGHT_SOURCE => "Light Source",
-                &FLASH => "Flash",
-                &FOCAL_LENGTH => "Focal Length",
-                &MAKER_NOTE => "Maker Note",
-                &USER_COMMENT => "User Comment",
-                &FLASHPIX_VERSION => "FlashPix Version",
-                &COLOR_SPACE => "Color Space",
-                &EXIF_IMAGE_WIDTH => "Exif Image Width",
-                &EXIF_IMAGE_HEIGHT => "Exif Image Height",
-                &RELATED_SOUND_FILE => "Related Sound File",
-                &EXIF_INTEROPERABILITY_OFFSET => "Exif Interoperability Offset",
-                &FOCAL_PLANE_X_RESOLUTION => "Focal Plane X Resolution",
-                &FOCAL_PLANE_Y_RESOLUTION => "Focal Plane Y Resolution",
-                &FOCAL_PLANE_RESOLUTION_UNIT => "Focal Plane Resolution Unit",
-                &SENSING_METHOD => "Sensing Method",
-                &FILE_SOURCE => "File Source",
-                &SCENE_TYPE => "Scene Type",
-                _ => "Unknown",
+                &IMAGE_WIDTH => "Image Width".to_owned(),
+                &IMAGE_HEIGHT => "Image Height".to_owned(),
+                &BITS_PER_SAMPLE => "Bits Per Sample".to_owned(),
+                &COMPRESSION => "Compression".to_owned(),
+                &PHOTOMETRIC_INTERPRETATION => "Photometric Interpretation".to_owned(),
+                &IMAGE_DESCRIPTION => "Image Description".to_owned(),
+                &MAKE => "Make".to_owned(),
+                &MODEL => "Model".to_owned(),
+                &ORIENTATION => "Orientation".to_owned(),
+                &SAMPLES_PER_PIXEL => "Samples Per Pixel".to_owned(),
+                &X_RESOLUTION => "X Resolution".to_owned(),
+                &Y_RESOLUTION => "Y Resolution".to_owned(),
+                &RESOLUTION_UNIT => "Resolution Unit".to_owned(),
+                &SOFTWARE => "Software".to_owned(),
+                &DATE_TIME => "Date Time".to_owned(),
+                &WHITE_POINT => "White Point".to_owned(),
+                &THUMBNAIL_OFFSET => "Thumbnail Offset".to_owned(),
+                &THUMBNAIL_LENGTH => "Thumbnail Length".to_owned(),
+                &PRIMARY_CHROMATICITIES => "Primary Chromaticities".to_owned(),
+                &Y_CB_CR_COEFFICIENTS => "Y Cb Cr Coefficients".to_owned(),
+                &Y_CB_CR_POSITIONING => "Y Cb Cr Positioning".to_owned(),
+                &REFERENCE_BLACK_WHITE => "Reference Black White".to_owned(),
+                &COPYRIGHT => "Copyright".to_owned(),
+                &EXPOSURE_TIME => "Exposure Time".to_owned(),
+                &F_NUMBER => "F Number".to_owned(),
+                &EXIF_SUB_IFD_OFFSET => "Exif Offset".to_owned(),
+                &EXPOSURE_PROGRAM => "Exposure Program".to_owned(),
+                &GPS_SUB_IFD_OFFSET => "GPS Offset".to_owned(),
+                &ISO_SPEED_RATINGS => "ISO Speed Ratings".to_owned(),
+                &EXIF_VERSION => "Exif Version".to_owned(),
+                &DATE_TIME_ORIGINAL => "Date Time Original".to_owned(),
+                &DATE_TIME_DIGITIZED => "Date Time Digitized".to_owned(),
+                &COMPONENT_CONFIGURATION => "Component Configuration".to_owned(),
+                &COMPRESSED_BITS_PER_PIXEL => "Compressed Bits Per Pixel".to_owned(),
+                &SHUTTER_SPEED_VALUE => "Shutter Speed Value".to_owned(),
+                &APEX_APERTURE_VALUE => "Apex Aperture Value".to_owned(),
+                &BRIGHTNESS_VALUE => "Brightness Value".to_owned(),
+                &EXPOSURE_BIAS_VALUE => "Exposure Bias Value".to_owned(),
+                &MAX_APERTURE_VALUE => "Max Aperture Value".to_owned(),
+                &SUBJECT_DISTANCE => "Subject Distance".to_owned(),
+                &METERING_MODE => "Metering Mode".to_owned(),
+                &LIGHT_SOURCE => "Light Source".to_owned(),
+                &FLASH => "Flash".to_owned(),
+                &FOCAL_LENGTH => "Focal Length".to_owned(),
+                &MAKER_NOTE => "Maker Note".to_owned(),
+                &USER_COMMENT => "User Comment".to_owned(),
+                &XP_COMMENT => "XP Comment".to_owned(),
+                &XP_AUTHOR => "XP Author".to_owned(),
+                &XP_KEYWORDS => "XP Keywords".to_owned(),
+                &XP_SUBJECT => "XP Subject".to_owned(),
+                &FLASHPIX_VERSION => "FlashPix Version".to_owned(),
+                &COLOR_SPACE => "Color Space".to_owned(),
+                &EXIF_IMAGE_WIDTH => "Exif Image Width".to_owned(),
+                &EXIF_IMAGE_HEIGHT => "Exif Image Height".to_owned(),
+                &RELATED_SOUND_FILE => "Related Sound File".to_owned(),
+                &EXIF_INTEROPERABILITY_OFFSET => "Exif Interoperability Offset".to_owned(),
+                &FOCAL_PLANE_X_RESOLUTION => "Focal Plane X Resolution".to_owned(),
+                &FOCAL_PLANE_Y_RESOLUTION => "Focal Plane Y Resolution".to_owned(),
+                &FOCAL_PLANE_RESOLUTION_UNIT => "Focal Plane Resolution Unit".to_owned(),
+                &SENSING_METHOD => "Sensing Method".to_owned(),
+                &FILE_SOURCE => "File Source".to_owned(),
+                &SCENE_TYPE => "Scene Type".to_owned(),
+                &EXPOSURE_MODE => "Exposure Mode".to_owned(),
+                &WHITE_BALANCE => "White Balance".to_owned(),
+                &DIGITAL_ZOOM_RATIO => "Digital Zoom Ratio".to_owned(),
+                &FOCAL_LENGTH_IN_35MM_FORMAT => "Focal Length In 35mm Format".to_owned(),
+                &SCENE_CAPTURE_TYPE => "Scene Capture Type".to_owned(),
+                &GAIN_CONTROL => "Gain Control".to_owned(),
+                &CONTRAST => "Contrast".to_owned(),
+                &SATURATION => "Saturation".to_owned(),
+                &SHARPNESS => "Sharpness".to_owned(),
+                &DEVICE_SETTING_DESCRIPTION => "Device Setting Description".to_owned(),
+                &SUBJECT_DISTANCE_RANGE => "Subject Distance Range".to_owned(),
+                &IMAGE_UNIQUE_ID => "Image Unique ID".to_owned(),
+                &OWNER_NAME => "Owner Name".to_owned(),
+                &SERIAL_NUMBER => "Serial Number".to_owned(),
+                &LENS_INFO => "Lens Info".to_owned(),
+                &LENS_MAKE => "Lens Make".to_owned(),
+                &LENS_MODEL => "Lens Model".to_owned(),
+                &LENS_SERIAL_NUMBER => "Lens Serial Number".to_owned(),
+                &TITLE => "Title".to_owned(),
+                _ => format!("Unknown({:02x?})", self.0),
             }
         )
     }
@@ -142,6 +171,11 @@ pub(crate) const STRIP_OFFSETS: Tag = Tag(0x0111);
 /// * **Components**: 1
 pub(crate) const ORIENTATION: Tag = Tag(0x0112);
 
+/// The number of separate planes in this image.
+/// * **Format**: Unsigned short
+/// * **Components**: 1
+pub(crate) const SAMPLES_PER_PIXEL: Tag = Tag(0x0115);
+
 /// Shows resolution of the X axis, often 72/1 i.e. 72 pixels per inch, but this really has
 /// no meaning as computers don't use this value for display.
 /// * **Format**: Unsigned rational
@@ -162,7 +196,7 @@ pub(crate) const RESOLUTION_UNIT: Tag = Tag(0x0128);
 
 /// Shows software version
 /// * **Format**: ASCII string
-/// * **Components**: ?
+/// * **Components**: variable e.g. 12
 pub(crate) const SOFTWARE: Tag = Tag(0x0131);
 
 /// Date and time of image was last modified.
@@ -242,6 +276,11 @@ pub(crate) const EXIF_SUB_IFD_OFFSET: Tag = Tag(0x8769);
 /// * **Format**: Unsigned short
 /// * **Components**: 1
 pub(crate) const EXPOSURE_PROGRAM: Tag = Tag(0x8822);
+
+/// Shows offset to GPS Info IFD
+/// * **Format**: Unsigned long
+/// * **Components**: 1
+pub(crate) const GPS_SUB_IFD_OFFSET: Tag = Tag(0x8825);
 
 /// CCD sensitivity equivalent to Ag-Hr film speedrate.
 /// * **Format**: Unsigned short
@@ -346,6 +385,26 @@ pub(crate) const MAKER_NOTE: Tag = Tag(0x927C);
 /// * **Components**: ?
 pub(crate) const USER_COMMENT: Tag = Tag(0x9286);
 
+/// Stores the XP comment
+/// * **Format**: ASCII string
+/// * **Components**: variable
+pub(crate) const XP_COMMENT: Tag = Tag(0x9C9C);
+
+/// Stores the XP author
+/// * **Format**: ASCII string
+/// * **Components**: variable
+pub(crate) const XP_AUTHOR: Tag = Tag(0x9C9D);
+
+/// Stores the XP keywords
+/// * **Format**: ASCII string
+/// * **Components**: variable
+pub(crate) const XP_KEYWORDS: Tag = Tag(0x9C9E);
+
+/// Stores the XP subject
+/// * **Format**: ASCII string
+/// * **Components**: variable
+pub(crate) const XP_SUBJECT: Tag = Tag(0x9C9F);
+
 /// Stores the FlashPix version
 /// * **Format**: ASCII string
 /// * **Components**: 4
@@ -408,3 +467,106 @@ pub(crate) const FILE_SOURCE: Tag = Tag(0xA300);
 /// * **Format**: undefined
 /// * **Components**: 1
 pub(crate) const SCENE_TYPE: Tag = Tag(0xA301);
+
+/// Exposure Mode
+/// * 0 = Auto, 1 = Manual, 2 = Auto bracket
+/// * **Format**: Unsigned short
+/// * **Components**: 1
+pub(crate) const EXPOSURE_MODE: Tag = Tag(0xA402);
+
+/// White balance
+/// * 0 = Auto, 1 = Manual
+/// * **Format**: Unsigned short
+/// * **Components**: 1
+pub(crate) const WHITE_BALANCE: Tag = Tag(0xA403);
+
+/// Digital zoom ratio
+/// * **Format**: Unsigned rational
+/// * **Components**: 1
+pub(crate) const DIGITAL_ZOOM_RATIO: Tag = Tag(0xA404);
+
+/// Focal length in 35mm format
+/// * **Format**: Unsigned short
+/// * **Components**: 1
+pub(crate) const FOCAL_LENGTH_IN_35MM_FORMAT: Tag = Tag(0xA405);
+
+/// Scene capture type
+/// * 0 = Standard, 1 = Landscape, 2 = Portrait, 3 = Night, 4 = Other
+/// * **Format**: Unsigned short
+/// * **Components**: 1
+pub(crate) const SCENE_CAPTURE_TYPE: Tag = Tag(0xA406);
+
+/// Gain control
+/// * 0 = None, 1 = Low gain up, 2 = High gain up, 3 = Low gain down, 4 = High gain down
+/// * **Format**: Unsigned short
+/// * **Components**: 1
+pub(crate) const GAIN_CONTROL: Tag = Tag(0xA407);
+
+/// Contrast
+/// * 0 = Normal, 1 = Low, 2 = High
+/// * **Format**: Unsigned short
+/// * **Components**: 1
+pub(crate) const CONTRAST: Tag = Tag(0xA408);
+
+/// Saturation
+/// * 0 = Normal, 1 = Low, 2 = High
+/// * **Format**: Unsigned short
+/// * **Components**: 1
+pub(crate) const SATURATION: Tag = Tag(0xA409);
+
+/// Sharpness
+/// * 0 = Normal, 1 = Soft, 2 = Hard
+/// * **Format**: Unsigned short
+/// * **Components**: 1
+pub(crate) const SHARPNESS: Tag = Tag(0xA40A);
+
+/// Device setting description
+/// * **Format**: undefined
+/// * **Components**: ?
+pub(crate) const DEVICE_SETTING_DESCRIPTION: Tag = Tag(0xA40B);
+
+/// Subject distance range
+/// * 0 = Unknown, 1 = Macro, 2 = Close, 3 = Distant
+/// * **Format**: Unsigned short
+/// * **Components**: 1
+pub(crate) const SUBJECT_DISTANCE_RANGE: Tag = Tag(0xA40C);
+
+/// Unique image ID
+/// * **Format**: ASCII string
+/// * **Components**: variable
+pub(crate) const IMAGE_UNIQUE_ID: Tag = Tag(0xA420);
+
+/// Camera owner name
+/// * **Format**: ASCII string
+/// * **Components**: variable
+pub(crate) const OWNER_NAME: Tag = Tag(0xA430);
+
+/// Serial number
+/// * **Format**: ASCII string
+/// * **Components**: variable
+pub(crate) const SERIAL_NUMBER: Tag = Tag(0xA431);
+
+/// Lens information
+/// * **Format**: Unsigned rational
+/// * **Components**: 4
+pub(crate) const LENS_INFO: Tag = Tag(0xA432);
+
+/// Lens make
+/// * **Format**: ASCII string
+/// * **Components**: variable
+pub(crate) const LENS_MAKE: Tag = Tag(0xA433);
+
+/// Lens model
+/// * **Format**: ASCII string
+/// * **Components**: variable
+pub(crate) const LENS_MODEL: Tag = Tag(0xA434);
+
+/// Lens serial number
+/// * **Format**: ASCII string
+/// * **Components**: variable
+pub(crate) const LENS_SERIAL_NUMBER: Tag = Tag(0xA435);
+
+/// Title
+/// * **Format**: ASCII string
+/// * **Components**: variable
+pub(crate) const TITLE: Tag = Tag(0xA436);

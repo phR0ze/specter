@@ -1,9 +1,11 @@
-use nom::{bytes::streaming as nom_bytes, error::Error as NomError, number::streaming as nom_nums};
-use std::io::{self, prelude::*};
+use std::{
+    fmt::Display,
+    io::{self, prelude::*},
+};
 
 use super::{marker, segment::Segment};
 use crate::{
-    errors::{JpegError, JpegErrorKind},
+    errors::JpegError,
     meta::{Exif, Jfif},
     slice,
 };
@@ -18,7 +20,7 @@ pub struct Jpeg {
 
 impl Jpeg {
     /// Parse all meta data from the given JPEG source.
-    pub(crate) fn parse<T: io::BufRead>(mut reader: T) -> JpegResult<Self> {
+    pub fn parse<T: io::BufRead>(mut reader: T) -> JpegResult<Self> {
         // Check the header to determine the media type
         let mut header = Vec::new();
         reader
@@ -36,13 +38,13 @@ impl Jpeg {
         Ok(Jpeg { segments })
     }
 
-    /// Dump meta data segments from the given JPEG source for debugging purposes.
-    pub(crate) fn dump_segments(&self) -> JpegResult<()> {
-        for segment in self.segments.iter() {
-            println!("{}", segment);
-        }
-        Ok(())
-    }
+    // /// Dump meta data segments from the given JPEG source for debugging purposes.
+    // pub fn dump_segments(&self, no_data: bool) -> JpegResult<()> {
+    //     for segment in self.segments.iter() {
+    //         println!("{}", segment);
+    //     }
+    //     Ok(())
+    // }
 
     // Determine if the given header is from a jpeg source
     pub(crate) fn is_jpeg(header: &[u8]) -> bool {
@@ -55,7 +57,7 @@ impl Jpeg {
             Some(segment) => match segment.data.as_ref() {
                 Some(data) => Some(match Jfif::parse(data) {
                     Ok(jfif) => Ok(jfif),
-                    Err(e) => Err(e.into()),
+                    Err(e) => Err(JpegError::parse(": jfif parsing").wrap(e)),
                 }),
                 _ => None,
             },
@@ -69,12 +71,21 @@ impl Jpeg {
             Some(segment) => match segment.data.as_ref() {
                 Some(data) => Some(match Exif::parse(data) {
                     Ok(exif) => Ok(exif),
-                    Err(e) => Err(e.into()),
+                    Err(e) => Err(JpegError::parse(": exif parsing").wrap(e)),
                 }),
                 None => None,
             },
             None => None,
         }
+    }
+}
+
+impl Display for Jpeg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for segment in self.segments.iter() {
+            writeln!(f, "{}", segment)?;
+        }
+        Ok(())
     }
 }
 

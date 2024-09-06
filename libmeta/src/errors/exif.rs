@@ -76,7 +76,7 @@ impl fmt::Display for ExifError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
             ExifErrorKind::Parse => write!(f, "Exif parse failed")?,
-            ExifErrorKind::OffsetIsZero => write!(f, "Exif parse failed: Offset is zero")?,
+            ExifErrorKind::OffsetIsZero => write!(f, "Exif parse failed: offset is zero")?,
         };
 
         // Display additional messaging if available

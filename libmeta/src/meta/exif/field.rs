@@ -5,8 +5,8 @@ use crate::errors::ExifError;
 
 use super::{
     format,
-    tag::{self, Tag},
-    Endian, ExifResult, Orientation, ResolutionUnit, YCbCrPositioning,
+    tag::{self, Orientation, ResolutionUnit, Tag, YCbCrPositioning},
+    Endian, ExifResult,
 };
 
 /// Represents an IFD tag in cluding its identifier, format, number of components, and data.
@@ -62,36 +62,38 @@ impl IfdField {
         }
         .map_err(|x| ExifError::parse(": IFD field components").with_nom_source(x))?;
 
-        // Offset to data value: 4 bytes
-        let (remain, data, offset) = super::parse_ifd_data_or_offset(remain, endian)?;
-
         // Create the ifd field and calculate if there is an offset to extract data from
         let mut field = IfdField::new(endian, tag, format, components);
-        if field.length() > 4 {
-            let remain = remain; // save the current position by creating a new variable
+        let remain = if field.length() > 4 {
+            let (remain, offset) = super::parse_ifd_offset(remain, endian)?;
 
             // Skip to the offset location
             let consumed = input.len() - remain.len();
             if consumed > offset as usize {
                 return Err(ExifError::parse(": IFD field offset is negative"));
             }
-            let remain = if offset as usize > consumed {
-                let (remain, _) = nom_bytes::take(offset as usize - consumed)(remain)
+            let inner = if offset as usize > consumed {
+                let (inner, _) = nom_bytes::take(offset as usize - consumed)(remain)
                     .map_err(|x| ExifError::parse(": IFD field offset").with_nom_source(x))?;
-                remain
+                inner
             } else {
                 remain
             };
 
             // Read the data from the offset location
-            let (_, data) = nom_bytes::take(field.length())(remain)
+            let (_, data) = nom_bytes::take(field.length())(inner)
                 .map_err(|x| ExifError::parse(": IFD field data").with_nom_source(x))?;
 
             field.offset = Some(offset);
             field.data = Some(data.to_vec());
+            remain
+
+        // Raw data payload i.e. not an offset
         } else {
+            let (remain, data) = super::parse_ifd_data(remain)?;
             field.data = Some(data.to_vec());
-        }
+            remain
+        };
 
         Ok((remain, field))
     }

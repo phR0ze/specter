@@ -1,7 +1,7 @@
 use nom::bytes::streaming as nom_bytes;
 use nom::number::streaming as nom_nums;
 
-use crate::errors::{ExifError, ExifErrorKind};
+use crate::errors::ExifError;
 
 use super::{tag::Tag, Endian, ExifResult, IfdField};
 
@@ -29,7 +29,7 @@ impl Ifd {
 
         // Skip to offset location
         let (remain, _) = nom_bytes::take(offset - (input.len() - remain.len()))(remain)
-            .map_err(|x| ExifError::parse(": Offset to IFD").with_nom_source(x))?;
+            .map_err(|x| ExifError::parse(": offset to IFD").with_nom_source(x))?;
 
         // Parse out the number of IFD fields to expect
         let (remain, count) = parse_field_count(remain, endian)?;
@@ -223,6 +223,7 @@ mod tests {
         assert_eq!(field.format, 2);
         assert_eq!(field.components, 5);
         assert_eq!(field.length(), 5);
+        assert_eq!(field.offset, Some(22));
         assert_eq!(field.data, Some(Vec::from(&data[22..])));
     }
 
@@ -261,7 +262,7 @@ mod tests {
         assert_eq!(field.components, 1);
         assert_eq!(field.offset, None);
         assert_eq!(field.length(), 4);
-        assert_eq!(field.data, Some(Vec::from(&[0x00, 0x00, 0x00, 0x2B])));
+        assert_eq!(field.data, Some(Vec::from(&[0x2B, 0x00, 0x00, 0x00])));
     }
 
     #[test]
