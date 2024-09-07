@@ -116,7 +116,7 @@ impl Display for Tag {
                 &IMAGE_UNIQUE_ID => "Image Unique ID".to_owned(),
                 &OWNER_NAME => "Owner Name".to_owned(),
                 &SERIAL_NUMBER => "Serial Number".to_owned(),
-                &LENS_INFO => "Lens Info".to_owned(),
+                &LENS_SPECIFICATION => "Lens Specification".to_owned(),
                 &LENS_MAKE => "Lens Make".to_owned(),
                 &LENS_MODEL => "Lens Model".to_owned(),
                 &LENS_SERIAL_NUMBER => "Lens Serial Number".to_owned(),
@@ -546,10 +546,10 @@ pub(crate) const OWNER_NAME: Tag = Tag(0xA430);
 /// * **Components**: variable
 pub(crate) const SERIAL_NUMBER: Tag = Tag(0xA431);
 
-/// Lens information
+/// Lens specification
 /// * **Format**: Unsigned rational
 /// * **Components**: 4
-pub(crate) const LENS_INFO: Tag = Tag(0xA432);
+pub(crate) const LENS_SPECIFICATION: Tag = Tag(0xA432);
 
 /// Lens make
 /// * **Format**: ASCII string

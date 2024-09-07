@@ -5,7 +5,7 @@ use crate::errors::ExifError;
 
 use super::{
     format,
-    tag::{self, Orientation, ResolutionUnit, Tag, YCbCrPositioning},
+    tag::{self, *},
     Endian, ExifResult,
 };
 
@@ -234,6 +234,11 @@ impl IfdField {
         // Try by tag type
         match match self.tag {
             tag::ORIENTATION => self.to_unsigned().map(|x| Orientation::from(x).to_string()),
+            tag::SHARPNESS => self.to_unsigned().map(|x| Sharpness::from(x).to_string()),
+            tag::CONTRAST => self.to_unsigned().map(|x| Contrast::from(x).to_string()),
+            tag::SATURATION => self.to_unsigned().map(|x| Saturation::from(x).to_string()),
+            tag::SCENE_CAPTURE_TYPE => self.to_unsigned().map(|x| Scene::from(x).to_string()),
+            tag::GAIN_CONTROL => self.to_unsigned().map(|x| Gain::from(x).to_string()),
             tag::RESOLUTION_UNIT => self
                 .to_unsigned()
                 .map(|x| ResolutionUnit::from(x).to_string()),

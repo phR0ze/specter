@@ -1,9 +1,8 @@
 use nom::bytes::streaming as nom_bytes;
 use nom::number::streaming as nom_nums;
 
-use crate::errors::ExifError;
-
 use super::{tag::Tag, Endian, ExifResult, IfdField};
+use crate::errors::ExifError;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Ifd {
