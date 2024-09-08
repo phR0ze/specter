@@ -9,6 +9,12 @@ use super::{
     Endian, ExifResult,
 };
 
+#[derive(Debug, PartialEq)]
+pub enum Field {
+    ImageWidth(u32),
+    None,
+}
+
 /// Represents an IFD tag in cluding its identifier, format, number of components, and data.
 #[derive(Debug, Clone)]
 pub(crate) struct IfdField {
@@ -142,22 +148,18 @@ impl IfdField {
     }
 
     /// Convert the data to a rational number
-    pub(crate) fn to_rational(&self) -> Option<(usize, usize)> {
-        if self.length() != 8 {
-            return None;
-        }
-
+    /// * Note: this only gets the first rational number
+    pub(crate) fn to_rationals(&self) -> ExifResult<Vec<Rational>> {
         match self.data {
-            Some(ref data) => data[0..4].try_into().ok().and_then(|num| {
-                data[4..8].try_into().ok().map(|den| {
-                    if self.endian == Endian::Little {
-                        (u32::from_le_bytes(num) as usize, u32::from_le_bytes(den) as usize)
-                    } else {
-                        (u32::from_be_bytes(num) as usize, u32::from_be_bytes(den) as usize)
-                    }
-                })
-            }),
-            None => None,
+            Some(ref data) => {
+                let mut rationals = Vec::new();
+                for i in (0..data.len()).step_by(8) {
+                    let rational = Rational::try_from(&data[i..i + 8], self.endian)?;
+                    rationals.push(rational);
+                }
+                Ok(rationals)
+            }
+            None => Err(ExifError::parse(": no data to convert to rational")),
         }
     }
 
@@ -233,17 +235,20 @@ impl IfdField {
     pub(crate) fn to_string(&self) -> String {
         // Try by tag type
         match match self.tag {
-            tag::ORIENTATION => self.to_unsigned().map(|x| Orientation::from(x).to_string()),
-            tag::SHARPNESS => self.to_unsigned().map(|x| Sharpness::from(x).to_string()),
-            tag::CONTRAST => self.to_unsigned().map(|x| Contrast::from(x).to_string()),
-            tag::SATURATION => self.to_unsigned().map(|x| Saturation::from(x).to_string()),
-            tag::SCENE_CAPTURE_TYPE => self.to_unsigned().map(|x| Scene::from(x).to_string()),
-            tag::GAIN_CONTROL => self.to_unsigned().map(|x| Gain::from(x).to_string()),
-            tag::RESOLUTION_UNIT => self
-                .to_unsigned()
+            Tag::Orientation=> self.to_unsigned().map(|x| Orientation::from(x).to_string()),
+            Tag::Sharpness=> self.to_unsigned().map(|x| Sharpness::from(x).to_string()),
+            Tag::Contrast=> self.to_unsigned().map(|x| Contrast::from(x).to_string()),
+            Tag::Saturation=> self.to_unsigned().map(|x| Saturation::from(x).to_string()),
+            Tag::SceneCaptureType=> self.to_unsigned().map(|x| Scene::from(x).to_string()),
+            Tag::GainControl=> self.to_unsigned().map(|x| Gain::from(x).to_string()),
+
+            // Lens specification consists of 4 rational numbers
+            // tag::LENS_SPECIFICATION => self.to_rationals().ok().map(|x| {
+            //     Gain::from(x).to_string()
+            // }),
+            Tag::ResolutionUnit=> self.to_unsigned()
                 .map(|x| ResolutionUnit::from(x).to_string()),
-            tag::Y_CB_CR_POSITIONING => self
-                .to_unsigned()
+            Tag::YCbCrPositioning=> self.to_unsigned()
                 .map(|x| YCbCrPositioning::from(x).to_string()),
 
             // Try by format type
@@ -252,9 +257,8 @@ impl IfdField {
                 format::UNSIGNED_BYTE => self.to_unsigned().map(|v| v.to_string()),
                 format::UNSIGNED_SHORT => self.to_unsigned().map(|v| v.to_string()),
                 format::UNSIGNED_LONG => self.to_unsigned().map(|v| v.to_string()),
-                format::UNSIGNED_RATIONAL => self.to_rational().map(|(n, d)| match d {
-                    1 => format!("{}", n), // common understanding is out of 1
-                    _ => format!("{}/{}", n, d),
+                format::UNSIGNED_RATIONAL => self.to_rationals().ok().map(|v| {
+                    v.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(", ")
                 }),
                 format::SIGNED_BYTE => self.to_signed().map(|v| v.to_string()),
                 format::SIGNED_SHORT => self.to_signed().map(|v| v.to_string()),
@@ -267,7 +271,16 @@ impl IfdField {
             },
         } {
             Some(x) => x,
-            None => "Unknown".to_string(),
+
+            // Fallback to debug to be able to fix it easier
+            None => format!(
+                "Debug [format: {}, components: {}, length: {}]\n  {: <32}: Data: {:02x?}",
+                self.format,
+                self.components,
+                self.length(),
+                "".to_string(),
+                self.data.as_ref().unwrap_or(&vec![0x00])
+            ),
         }
     }
 }
@@ -346,26 +359,28 @@ mod tests {
     #[test]
     fn test_data_to_unsigned() {
         assert_eq!(
-            IfdField::new(Endian::Big, tag::RESOLUTION_UNIT, format::UNSIGNED_SHORT, 1)
+            IfdField::new(Endian::Big, Tag::ResolutionUnit, format::UNSIGNED_SHORT, 1)
                 .with_data(&[0x00, 0x02, 0x00, 0x00,])
                 .to_unsigned(),
             Some(2)
         );
     }
+
     #[test]
     fn test_data_to_rational() {
         assert_eq!(
-            IfdField::new(Endian::Big, tag::X_RESOLUTION, format::UNSIGNED_RATIONAL, 1)
+            IfdField::new(Endian::Big, Tag::XResolution, format::UNSIGNED_RATIONAL, 1)
                 .with_data(&[0x00, 0x00, 0x00, 0x48, 0x00, 0x00, 0x00, 0x01,])
-                .to_rational(),
-            Some((72, 1))
+                .to_rationals()
+                .unwrap(),
+            vec![Rational::new(72, 1)]
         );
     }
 
     #[test]
     fn test_data_to_ascii() {
         assert_eq!(
-            IfdField::new(Endian::Big, tag::IMAGE_DESCRIPTION, format::ASCII_STRING, 11)
+            IfdField::new(Endian::Big, Tag::ImageDescription, format::ASCII_STRING, 11)
                 .with_data(&[
                     0x54, 0x65, 0x73, 0x74, 0x20, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x00, 0x46,
                 ])

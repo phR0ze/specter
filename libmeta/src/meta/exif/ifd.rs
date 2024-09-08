@@ -65,6 +65,7 @@ mod tests {
     use crate::errors::BaseError;
     use crate::exif::test_data::EXIF_TEST_DATA;
     use crate::meta::exif::{format, tag, tag::Tag};
+    use crate::Rational;
 
     #[test]
     fn test_parse_exif_ifd() {
@@ -73,7 +74,7 @@ mod tests {
         assert_eq!(ifd.fields.len(), 3);
 
         let field = &ifd.fields[0];
-        assert_eq!(field.tag, tag::EXIF_VERSION);
+        assert_eq!(field.tag, Tag::ExifVersion);
         assert_eq!(field.format, format::UNDEFINED);
         assert_eq!(field.components, 4);
         assert_eq!(field.offset, None);
@@ -81,7 +82,7 @@ mod tests {
         assert_eq!(field.to_ascii(), Some("0230".to_string()));
 
         let field = &ifd.fields[1];
-        assert_eq!(field.tag, tag::EXIF_IMAGE_WIDTH);
+        assert_eq!(field.tag, Tag::ExifImageWidth);
         assert_eq!(field.format, format::UNSIGNED_SHORT);
         assert_eq!(field.components, 1);
         assert_eq!(field.offset, None);
@@ -89,7 +90,7 @@ mod tests {
         assert_eq!(field.to_unsigned(), Some(15));
 
         let field = &ifd.fields[2];
-        assert_eq!(field.tag, tag::EXIF_IMAGE_HEIGHT);
+        assert_eq!(field.tag, Tag::ExifImageHeight);
         assert_eq!(field.format, format::UNSIGNED_SHORT);
         assert_eq!(field.components, 1);
         assert_eq!(field.offset, None);
@@ -103,7 +104,7 @@ mod tests {
             Ifd::parse(&EXIF_TEST_DATA, &EXIF_TEST_DATA[86..], Endian::Big, 176).unwrap();
 
         let field0 = &ifd.fields[0];
-        assert_eq!(field0.tag, tag::THUMBNAIL_OFFSET);
+        assert_eq!(field0.tag, Tag::ThumbnailOffset);
         assert_eq!(field0.format, format::UNSIGNED_LONG);
         assert_eq!(field0.components, 1);
         assert_eq!(field0.offset, None);
@@ -111,7 +112,7 @@ mod tests {
         assert_eq!(field0.to_unsigned(), Some(206));
 
         let field1 = &ifd.fields[1];
-        assert_eq!(field1.tag, tag::THUMBNAIL_LENGTH);
+        assert_eq!(field1.tag, Tag::ThumbnailLength);
         assert_eq!(field1.format, format::UNSIGNED_LONG);
         assert_eq!(field1.components, 1);
         assert_eq!(field1.offset, None);
@@ -125,7 +126,7 @@ mod tests {
 
         let field0 = &ifd.fields[0];
         assert_eq!(field0.endian, Endian::Big);
-        assert_eq!(field0.tag, tag::IMAGE_DESCRIPTION);
+        assert_eq!(field0.tag, Tag::ImageDescription);
         assert_eq!(field0.format, format::ASCII_STRING);
         assert_eq!(field0.components, 11);
         assert_eq!(field0.length(), 11);
@@ -139,7 +140,7 @@ mod tests {
 
         let field1 = &ifd.fields[1];
         assert_eq!(field1.endian, Endian::Big);
-        assert_eq!(field1.tag, tag::X_RESOLUTION);
+        assert_eq!(field1.tag, Tag::XResolution);
         assert_eq!(field1.format, format::UNSIGNED_RATIONAL);
         assert_eq!(field1.components, 1);
         assert_eq!(field1.length(), 8);
@@ -149,11 +150,11 @@ mod tests {
             field1.data,
             Some(Vec::from(&EXIF_TEST_DATA[offset..offset + field1.length() as usize]))
         );
-        assert_eq!(field1.to_rational(), Some((72, 1)));
+        assert_eq!(field1.to_rationals().unwrap(), vec![Rational::new(72, 1)]);
 
         let field2 = &ifd.fields[2];
         assert_eq!(field2.endian, Endian::Big);
-        assert_eq!(field2.tag, tag::Y_RESOLUTION);
+        assert_eq!(field2.tag, Tag::YResolution);
         assert_eq!(field2.format, format::UNSIGNED_RATIONAL);
         assert_eq!(field2.components, 1);
         assert_eq!(field2.offset, Some(106));
@@ -163,11 +164,11 @@ mod tests {
             field2.data,
             Some(Vec::from(&EXIF_TEST_DATA[offset..offset + field2.length() as usize]))
         );
-        assert_eq!(field2.to_rational(), Some((72, 1)));
+        assert_eq!(field2.to_rationals().unwrap(), vec![Rational::new(72, 1)]);
 
         let field3 = &ifd.fields[3];
         assert_eq!(field3.endian, Endian::Big);
-        assert_eq!(field3.tag, tag::RESOLUTION_UNIT);
+        assert_eq!(field3.tag, Tag::ResolutionUnit);
         assert_eq!(field3.format, format::UNSIGNED_SHORT);
         assert_eq!(field3.components, 1);
         assert_eq!(field3.offset, None);
@@ -177,7 +178,7 @@ mod tests {
 
         let field4 = &ifd.fields[4];
         assert_eq!(field4.endian, Endian::Big);
-        assert_eq!(field4.tag, tag::DATE_TIME);
+        assert_eq!(field4.tag, Tag::DateTime);
         assert_eq!(field4.format, format::ASCII_STRING);
         assert_eq!(field4.components, 20);
         assert_eq!(field4.offset, Some(114));
@@ -191,7 +192,7 @@ mod tests {
 
         let field5 = &ifd.fields[5];
         assert_eq!(field5.endian, Endian::Big);
-        assert_eq!(field5.tag, tag::EXIF_SUB_IFD_OFFSET);
+        assert_eq!(field5.tag, Tag::ExifSubIfdOffset);
         assert_eq!(field5.format, format::UNSIGNED_LONG);
         assert_eq!(field5.components, 1);
         assert_eq!(field5.offset, None);

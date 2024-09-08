@@ -2,7 +2,7 @@ use nom::bytes::streaming as nom_bytes;
 use nom::number::streaming as nom_nums;
 use std::fmt::Display;
 
-use super::{tag, Endian, Ifd, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN, TIFF_VERSION};
+use super::{Tag, Endian, Ifd, BIG_ENDIAN, EXIF_IDENTIFIER, LITTLE_ENDIAN, TIFF_VERSION};
 use crate::errors::{ExifError, ExifErrorKind};
 
 /// Simplify the Exif return type slightly
@@ -47,10 +47,8 @@ impl Display for Exif {
 
         for ifd in &self.ifds {
             for field in &ifd.fields {
-                if !field.tag.no_display() {
-                    // writeln!(f, "\n  {:?}", field)?;
-                    writeln!(f, "  {: <32}: {}", field.tag.to_string(), field.to_string())?;
-                }
+                // writeln!(f, "\n  {:?}", field)?;
+                writeln!(f, "  {: <32}: {}", field.tag.to_string(), field.to_string())?;
             }
         }
         Ok(())
@@ -84,7 +82,7 @@ fn parse_ifds<'a>(
 
         // Parse Sub IFDs
         let ifd = ifds.last().unwrap();
-        if let Some(field) = ifd.field_by_tag(tag::EXIF_SUB_IFD_OFFSET) {
+        if let Some(field) = ifd.field_by_tag(Tag::ExifSubIfdOffset) {
             if let Some(offset) = field.to_unsigned() {
                 // Don't need to track location as it is in an arbitrary location
                 let (_, ifd) = Ifd::parse(input, inner, endian, offset as usize)?;
@@ -184,7 +182,7 @@ mod tests {
         // IFD 0 spot check
         let field = &ifds[0].fields[3];
         assert_eq!(field.endian, Endian::Big);
-        assert_eq!(field.tag, tag::RESOLUTION_UNIT);
+        assert_eq!(field.tag, Tag::ResolutionUnit);
         assert_eq!(field.format, format::UNSIGNED_SHORT);
         assert_eq!(field.components, 1);
         assert_eq!(field.offset, None);
@@ -194,7 +192,7 @@ mod tests {
 
         // IFD 1 spot check
         let field = &ifds[1].fields[1];
-        assert_eq!(field.tag, tag::EXIF_IMAGE_WIDTH);
+        assert_eq!(field.tag, Tag::ExifImageWidth);
         assert_eq!(field.format, format::UNSIGNED_SHORT);
         assert_eq!(field.components, 1);
         assert_eq!(field.offset, None);
@@ -203,7 +201,7 @@ mod tests {
 
         // IFD 2 spot check
         let field = &ifds[2].fields[1];
-        assert_eq!(field.tag, tag::THUMBNAIL_LENGTH);
+        assert_eq!(field.tag, Tag::ThumbnailLength);
         assert_eq!(field.format, format::UNSIGNED_LONG);
         assert_eq!(field.components, 1);
         assert_eq!(field.offset, None);

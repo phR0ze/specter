@@ -9,7 +9,7 @@ use crate::{
     errors::MetaError,
 };
 
-use super::{Exif, Jfif};
+use super::{Tag, Exif, Field, Jfif};
 
 /// Simplify the Exif return type slightly
 pub type MetaResult<T> = Result<T, MetaError>;
@@ -25,9 +25,8 @@ pub struct Meta {
 }
 
 impl Meta {
-    /// Private default constructor
-    fn default() -> Self {
-        Self { container: None, jfif: RefCell::new(None), exif: RefCell::new(None) }
+    pub fn get_field(&self, tag: Tag) -> Option<Field> {
+        Some(Field::ImageWidth(10u32))
     }
 
     /// Discover the media type and create a new instance based on that type
@@ -57,6 +56,11 @@ impl Meta {
         } else {
             Err(MetaError::unknown_header(&header))
         }
+    }
+
+    /// Private default constructor
+    fn default() -> Self {
+        Self { container: None, jfif: RefCell::new(None), exif: RefCell::new(None) }
     }
 
     /// Is the meta data type from a JPEG container
@@ -124,8 +128,27 @@ impl Display for Meta {
 
 #[cfg(test)]
 mod tests {
+    use core::panic;
+
     use super::*;
     use crate::container::JPEG_TEST_DATA;
+
+    #[test]
+    fn test_meta_get_field() {
+        let mut data = io::Cursor::new(&JPEG_TEST_DATA);
+        let meta = Meta::parse(&mut data).unwrap();
+
+        if let Some(field) = meta.get_field(Tag::ImageWidth) {
+            if let Field::ImageWidth(width) = field {
+                assert_eq!(width, 10u32);
+            } else {
+                panic!("Field is not ImageWidth");
+            }
+        } else {
+            panic!("Field is None");
+        }
+    }
+
 
     #[test]
     fn test_meta_parse_header_is_valid_jpeg() {

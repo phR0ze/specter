@@ -2,14 +2,15 @@ mod endian;
 mod field;
 mod format;
 mod ifd;
+mod tag;
 
 // Surface module directly
 pub(crate) mod exif;
-pub(crate) mod tag;
 pub(crate) mod test_data;
 
 // Surface types from modules directly in the meta module
 pub(crate) use endian::*;
+pub(crate) use tag::*;
 pub(crate) use exif::*;
 pub(crate) use field::*;
 pub(crate) use ifd::*;
